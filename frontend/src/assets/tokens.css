@@ -1,0 +1,218 @@
+:root {
+  --ink: #10202b;
+  --ink-soft: #3c4d59;
+  --paper: #f4f6f5;
+  --surface: #ffffff;
+  --line: rgba(16, 32, 43, 0.12);
+  --signal: #0e7c8c;
+  --signal-deep: #0b5c68;
+  --risk-ok: #2f8f5b;
+  --risk-mid: #c98a1f;
+  --risk-high: #b23a3a;
+
+  --font-display: 'Space Grotesk', sans-serif;
+  --font-ui: 'IBM Plex Sans', sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  margin: 0 0 0.5rem;
+  letter-spacing: -0.01em;
+}
+
+h1 {
+  font-size: 1.5rem;
+}
+h2 {
+  font-size: 1.125rem;
+}
+h3 {
+  font-size: 0.95rem;
+}
+
+.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+button,
+input,
+select {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+a {
+  color: var(--signal-deep);
+}
+
+:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: 2px;
+}
+
+.stat-block {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--signal);
+  padding: 0.9rem 1rem;
+}
+
+.stat-block__label {
+  font-size: 0.75rem;
+  color: var(--ink-soft);
+  margin-bottom: 0.25rem;
+}
+
+.stat-block__value {
+  font-family: var(--font-mono);
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  padding: 1rem;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  padding: 0.3rem 0.6rem;
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+}
+
+.chip--active {
+  border-color: var(--signal);
+  color: var(--signal-deep);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid var(--line);
+}
+
+th {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  color: var(--ink-soft);
+  font-size: 0.75rem;
+}
+
+td.num {
+  text-align: right;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  padding: 0.15rem 0.5rem;
+  border: 1px solid currentColor;
+}
+
+.badge--ok {
+  color: var(--risk-ok);
+}
+.badge--mid {
+  color: var(--risk-mid);
+}
+.badge--high {
+  color: var(--risk-high);
+}
+
+.badge__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.btn {
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: var(--surface);
+  padding: 0.5rem 0.9rem;
+  font-weight: 500;
+}
+
+.btn:hover {
+  background: var(--signal-deep);
+  border-color: var(--signal-deep);
+}
+
+.btn--ghost {
+  background: transparent;
+  color: var(--ink);
+}
+
+.btn--ghost:hover {
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.btn--danger {
+  background: var(--surface);
+  color: var(--risk-high);
+  border-color: var(--risk-high);
+}
+
+.btn--danger:hover {
+  background: var(--risk-high);
+  color: var(--surface);
+}
+
+.empty-state {
+  padding: 2rem 1rem;
+  text-align: left;
+  color: var(--ink-soft);
+  border: 1px dashed var(--line);
+}
+
+.loading-state {
+  padding: 1.5rem 1rem;
+  color: var(--ink-soft);
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+}

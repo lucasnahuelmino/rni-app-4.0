@@ -1,0 +1,19 @@
+# RNI App 4.0
+
+Sistema de consulta, análisis y visualización de mediciones de Radiaciones No Ionizantes (RNI).
+
+## Arquitectura
+
+- Backend: FastAPI + Python
+- Frontend: Vue
+- Base de datos: SQLite
+- Mapas: Leaflet
+- API REST
+
+## Estructura
+
+```text
+backend/
+frontend/
+data/
+docs/

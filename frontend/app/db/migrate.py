@@ -1,0 +1,156 @@
+"""Migración: rni.db (esquema Streamlit actual, tabla `mediciones_rni`) ->
+rni_v2.db (esquema nuevo, ver Fase 2).
+
+Uso:
+    python -m app.db.migrate --origen /ruta/a/rni.db --destino /ruta/a/rni_v2.db
+
+No modifica el archivo de origen. El destino se crea desde cero (falla si
+ya existe, para no pisar una migración anterior por accidente).
+
+Al final corre la validación cruzada del diseño de Fase 2 (§2.1) y
+IMPRIME un reporte; si alguna verificación no coincide, termina con
+código de salida distinto de 0 y no se debe promover `destino` a
+producción hasta resolver la discrepancia.
+"""
+from __future__ import annotations
+
+import argparse
+import math
+import sqlite3
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+from app.calculations.dates import add_fecha_hora, anio_de_fecha_hora
+from app.calculations.rni import resultado_pct
+from app.core.config import SCHEMA_PATH
+from app.services import statistics as statistics_service
+
+
+def migrar(origen: Path, destino: Path) -> None:
+    if destino.exists():
+        raise SystemExit(f"El destino ya existe, no se sobreescribe: {destino}")
+
+    origen_conn = sqlite3.connect(str(origen))
+    origen_conn.row_factory = sqlite3.Row
+
+    destino_conn = sqlite3.connect(str(destino))
+    destino_conn.row_factory = sqlite3.Row
+    destino_conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
+
+    ahora = datetime.now(timezone.utc).isoformat()
+
+    filas_origen = [dict(r) for r in origen_conn.execute("SELECT * FROM mediciones_rni").fetchall()]
+    print(f"Leídas {len(filas_origen)} filas de mediciones_rni en el origen.")
+
+    import pandas as pd
+    df = pd.DataFrame(filas_origen)
+    if not df.empty:
+        df = df.rename(columns={"Nombre Archivo": "nombre_archivo"})
+        df = add_fecha_hora(df, fecha_col="Fecha", hora_col="Hora", out_col="fecha_hora")
+        df["anio"] = df["fecha_hora"].apply(anio_de_fecha_hora)
+
+    filas_nuevas = []
+    for _, fila in df.iterrows():
+        resultado_vm = fila.get("Resultado")
+        resultado_vm = None if pd.isna(resultado_vm) else float(resultado_vm)
+
+        # Se recalcula con la fórmula centralizada para verificar
+        # equivalencia (ver validación cruzada más abajo) en vez de copiar
+        # directo el valor de origen -- si difieren, la migración avisa.
+        pct_recalculado = resultado_pct(resultado_vm) if resultado_vm is not None else None
+
+        fecha_hora_val = fila.get("fecha_hora")
+        fecha_hora_iso = None if pd.isna(fecha_hora_val) else pd.Timestamp(fecha_hora_val).isoformat()
+
+        filas_nuevas.append({
+            "ccte": fila.get("CCTE"), "provincia": fila.get("Provincia"), "localidad": fila.get("Localidad"),
+            "resultado_vm": resultado_vm,
+            "resultado_pct": pct_recalculado,
+            "fecha_raw": fila.get("Fecha"), "hora_raw": fila.get("Hora"),
+            "fecha_hora": fecha_hora_iso,
+            "anio": None if pd.isna(fila.get("anio")) else int(fila["anio"]),
+            "lat": -abs(float(fila["Lat"])) if pd.notna(fila.get("Lat")) else None,
+            "lon": -abs(float(fila["Lon"])) if pd.notna(fila.get("Lon")) else None,
+            "lat_raw": None, "lon_raw": None,  # el esquema viejo no guardaba el crudo
+            "expediente": fila.get("Expediente"), "sonda": fila.get("Sonda"),
+            "nombre_archivo": fila.get("nombre_archivo"),
+            "import_batch_id": None,
+            "fecha_carga": fila.get("FechaCarga") or ahora,
+        })
+
+    columnas = list(filas_nuevas[0].keys()) if filas_nuevas else []
+    if columnas:
+        placeholders = ",".join("?" for _ in columnas)
+        destino_conn.executemany(
+            f"INSERT INTO mediciones ({','.join(columnas)}) VALUES ({placeholders})",
+            [[f[c] for c in columnas] for f in filas_nuevas],
+        )
+    destino_conn.commit()
+    print(f"Insertadas {len(filas_nuevas)} filas en el destino.")
+
+    claves = {(f["ccte"], f["provincia"], f["localidad"]) for f in filas_nuevas}
+    statistics_service.recalcular(destino_conn, claves)
+    destino_conn.commit()
+    print(f"Resúmenes recalculados para {len(claves)} localidades.")
+
+    ok = _validar(origen_conn, destino_conn)
+    origen_conn.close()
+    destino_conn.close()
+
+    if not ok:
+        print("\n❌ La validación cruzada encontró diferencias. NO promover a producción.")
+        sys.exit(1)
+    print("\n✅ Validación cruzada OK.")
+
+
+def _validar(origen_conn: sqlite3.Connection, destino_conn: sqlite3.Connection) -> bool:
+    ok = True
+
+    total_origen = origen_conn.execute("SELECT COUNT(*) AS n FROM mediciones_rni").fetchone()["n"]
+    total_destino = destino_conn.execute("SELECT COUNT(*) AS n FROM mediciones").fetchone()["n"]
+    print(f"Total registros -- origen: {total_origen}, destino: {total_destino}")
+    ok &= total_origen == total_destino
+
+    for campo_origen, campo_destino in [("CCTE", "ccte"), ("Provincia", "provincia"), ("Localidad", "localidad")]:
+        n_origen = origen_conn.execute(f"SELECT COUNT(DISTINCT {campo_origen}) AS n FROM mediciones_rni").fetchone()["n"]
+        n_destino = destino_conn.execute(f"SELECT COUNT(DISTINCT {campo_destino}) AS n FROM mediciones").fetchone()["n"]
+        print(f"{campo_origen} únicos -- origen: {n_origen}, destino: {n_destino}")
+        ok &= n_origen == n_destino
+
+    max_origen = origen_conn.execute("SELECT MAX(Resultado) AS m FROM mediciones_rni").fetchone()["m"]
+    max_destino = destino_conn.execute("SELECT MAX(resultado_vm) AS m FROM mediciones").fetchone()["m"]
+    print(f"Máximo V/m -- origen: {max_origen}, destino: {max_destino}")
+    if max_origen is not None and max_destino is not None:
+        ok &= math.isclose(max_origen, max_destino, rel_tol=1e-9)
+    else:
+        ok &= max_origen == max_destino
+
+    # resultado_pct: comparar fila por fila (join por rowid es lo más simple
+    # ya que se insertó en el mismo orden que se leyó).
+    origen_pct = [r["Resultado_Pct"] for r in origen_conn.execute(
+        "SELECT Resultado_Pct FROM mediciones_rni ORDER BY rowid"
+    ).fetchall()]
+    destino_pct = [r["resultado_pct"] for r in destino_conn.execute(
+        "SELECT resultado_pct FROM mediciones ORDER BY id"
+    ).fetchall()]
+    diffs = 0
+    for a, b in zip(origen_pct, destino_pct):
+        if a is None or b is None:
+            if a != b:
+                diffs += 1
+            continue
+        if not math.isclose(a, b, rel_tol=1e-9, abs_tol=1e-9):
+            diffs += 1
+    print(f"Filas con resultado_pct distinto entre origen y destino (fuera de tolerancia): {diffs}")
+    ok &= diffs == 0
+
+    return ok
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--origen", required=True, type=Path)
+    parser.add_argument("--destino", required=True, type=Path)
+    args = parser.parse_args()
+    migrar(args.origen, args.destino)

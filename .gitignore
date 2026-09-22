@@ -1,0 +1,33 @@
+# Python
+_pycache_/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+.env
+
+# SQLite / datos
+*.db
+*.db-shm
+*.db-wal
+data/
+
+# Node
+node_modules/
+frontend/dist/
+frontend/.vite/
+
+# IDE
+.vscode/
+.idea/
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporales
+*.tmp
+*.temp
