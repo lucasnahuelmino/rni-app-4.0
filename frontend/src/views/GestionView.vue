@@ -379,11 +379,7 @@ const urlPdf = computed(() => {
   color: var(--ink-soft);
 }
 
-.gestion__form input {
-  border: 1px solid var(--line);
-  padding: 0.4rem 0.5rem;
-  color: var(--ink);
-}
+/* input del formulario: ahora lo unifica el global de tokens.css */
 
 .gestion__form-acciones {
   display: flex;

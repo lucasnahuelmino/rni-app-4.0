@@ -34,7 +34,7 @@ const etiqueta = computed(() => escala.etiquetaPorPct(props.pct))
 .badge-color__dot {
   width: 8px;
   height: 8px;
-  border-radius: 50%;
+  border-radius: var(--radius-full);
   background: var(--badge-color, var(--ink-soft));
   flex-shrink: 0;
 }

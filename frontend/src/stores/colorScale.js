@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { colorsApi } from '../services/domains'
+import { token } from '../assets/tokens'
 
 // Única fuente de verdad de los 10 rangos de color: se pide una sola vez al
 // backend (GET /api/color-scale) y la comparten SemaforoBadge.vue y
@@ -24,9 +25,12 @@ export const useColorScaleStore = defineStore('colorScale', {
       }
     },
     colorPorPct(pct) {
-      if (pct == null) return '#9aa5ab'
+      // --sin-dato es la única fuente del neutro: la leyenda del mapa usa
+      // esta misma función, así que leyenda y marcadores no pueden divergir.
+      const sinDato = token('--sin-dato', '#9aa5ab')
+      if (pct == null) return sinDato
       const rango = this.rangos.find((r) => pct >= r.desde && (r.hasta == null || pct < r.hasta))
-      return rango ? rango.color : (this.rangos.at(-1)?.color ?? '#9aa5ab')
+      return rango ? rango.color : (this.rangos.at(-1)?.color ?? sinDato)
     },
     etiquetaPorPct(pct) {
       if (pct == null) return 'Sin dato'

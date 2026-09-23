@@ -154,7 +154,11 @@ function onLocalidadInput() {
         <span v-for="r in escala.rangos" :key="r.etiqueta" class="mapa-leyenda__item">
           <span class="mapa-leyenda__dot" :style="{ background: r.color }"></span>{{ r.etiqueta }}
         </span>
-        <span class="mapa-leyenda__item"><span class="mapa-leyenda__dot" style="background:#9aa5ab"></span>Sin dato</span>
+        <span class="mapa-leyenda__item">
+          <!-- colorPorPct(null) en vez de un hex suelto: es la misma fuente
+               que usan los marcadores, así la leyenda no puede divergir -->
+          <span class="mapa-leyenda__dot" :style="{ background: escala.colorPorPct(null) }"></span>Sin dato
+        </span>
       </div>
     </div>
 
@@ -198,12 +202,6 @@ function onLocalidadInput() {
   max-width: 280px;
 }
 
-.mapa-localidad input {
-  border: 1px solid var(--line);
-  padding: 0.35rem 0.5rem;
-  color: var(--ink);
-}
-
 .mapa-nota {
   font-size: 0.8rem;
   color: var(--ink-soft);
@@ -232,7 +230,7 @@ function onLocalidadInput() {
 .mapa-leyenda__dot {
   width: 10px;
   height: 10px;
-  border-radius: 50%;
+  border-radius: var(--radius-full);
   display: inline-block;
 }
 

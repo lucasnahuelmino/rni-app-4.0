@@ -151,9 +151,4 @@ const { data: tiempoMensual, loading: loadingTiempoMensual, error: errorTiempoMe
   justify-content: space-between;
   margin-bottom: 0.75rem;
 }
-
-select {
-  border: 1px solid var(--line);
-  padding: 0.35rem 0.5rem;
-}
 </style>

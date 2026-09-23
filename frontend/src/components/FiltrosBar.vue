@@ -115,10 +115,11 @@ function agregarAnio() {
   min-width: 1.1rem;
   height: 1.1rem;
   background: var(--signal);
-  color: #fff;
-  font-size: 0.65rem;
-  margin-left: 0.4rem;
-  padding: 0 0.3rem;
+  color: var(--on-ink);
+  /* era 0.65rem (~10px): ilegible. El mínimo del sistema es --fs-2xs. */
+  font-size: var(--fs-2xs);
+  margin-left: var(--space-4);
+  padding: 0 var(--space-3);
 }
 
 .filtros__activos {
@@ -172,7 +173,7 @@ function agregarAnio() {
 
 .filtros__input-row input {
   flex: 1;
-  border: 1px solid var(--line);
-  padding: 0.35rem 0.5rem;
+  /* border/padding/color los pone el global de tokens.css -- acá solo va lo
+     que es propio de esta fila. */
 }
 </style>

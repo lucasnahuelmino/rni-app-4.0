@@ -6,7 +6,7 @@ defineEmits(['reintentar'])
 </script>
 
 <template>
-  <div class="empty-state" role="alert">
+  <div class="error-state" role="alert">
     <p>{{ mensaje }}</p>
     <button class="btn btn--ghost" @click="$emit('reintentar')">Reintentar</button>
   </div>

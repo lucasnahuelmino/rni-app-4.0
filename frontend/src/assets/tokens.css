@@ -1,4 +1,11 @@
+/* Design tokens -- única fuente de verdad de color, tipografía, espaciado y
+   radios. El criterio de diseño está en DESIGN.md.
+
+   Nota: Chart.js y Leaflet no pueden resolver var(--x), así que estos
+   mismos valores se leen desde JS en src/assets/tokens.js. Mantené ambos
+   archivos sincronizados por el nombre del token, nunca por el valor. */
 :root {
+  /* --- Color --- */
   --ink: #10202b;
   --ink-soft: #3c4d59;
   --paper: #f4f6f5;
@@ -9,10 +16,51 @@
   --risk-ok: #2f8f5b;
   --risk-mid: #c98a1f;
   --risk-high: #b23a3a;
+  --sin-dato: #9aa5ab; /* neutro para "sin dato": leyenda, marcadores, badges */
 
+  /* Texto y decoración sobre --ink (sidebar, badges de acento).
+     Derivados de --surface con color-mix: antes eran rgba(255,255,255,x)
+     escritos a mano en MainLayout.vue y FiltrosBar.vue, fuera del sistema. */
+  --on-ink: var(--surface);
+  --on-ink-soft: color-mix(in srgb, var(--surface) 75%, transparent);
+  --on-ink-faint: color-mix(in srgb, var(--surface) 55%, transparent);
+  --on-ink-wash: color-mix(in srgb, var(--surface) 7%, transparent);
+
+  /* --- Tipografía --- */
   --font-display: 'Space Grotesk', sans-serif;
   --font-ui: 'IBM Plex Sans', sans-serif;
   --font-mono: 'IBM Plex Mono', monospace;
+
+  --fs-body: 0.875rem; /* era 14px -- en rem respeta el tamaño de fuente del usuario */
+  --fs-2xs: 0.7rem;
+  --fs-xs: 0.75rem;
+  --fs-sm: 0.8rem;
+  --fs-md: 0.85rem;
+  --fs-lg: 0.95rem;
+  --fs-xl: 1.125rem;
+  --fs-2xl: 1.25rem;
+  --fs-3xl: 1.5rem;
+
+  /* --- Espaciado ---
+     Antes había 10+ valores casi iguales escritos a mano (1.75, 1.5, 0.6,
+     0.55, 0.4, 0.35, 0.3, 0.25, 0.15...) sin escala. Esta es la escala. */
+  --space-1: 0.15rem;
+  --space-2: 0.25rem;
+  --space-3: 0.35rem;
+  --space-4: 0.5rem;
+  --space-5: 0.75rem;
+  --space-6: 1rem;
+  --space-7: 1.25rem;
+  --space-8: 1.5rem;
+  --space-9: 1.75rem;
+  --space-10: 2rem;
+
+  /* --- Radios ---
+     El sistema es hairline y cuadrado (DESIGN.md: nada de border-radius
+     grande ni sombras). --radius-xs es para controles de formulario,
+     --radius-full solo para los puntos del semáforo y la leyenda. */
+  --radius-xs: 2px;
+  --radius-full: 50%;
 }
 
 * {
@@ -30,7 +78,7 @@ body {
   background: var(--paper);
   color: var(--ink);
   font-family: var(--font-ui);
-  font-size: 14px;
+  font-size: var(--fs-body);
   line-height: 1.5;
 }
 
@@ -39,18 +87,18 @@ h2,
 h3 {
   font-family: var(--font-display);
   font-weight: 600;
-  margin: 0 0 0.5rem;
+  margin: 0 0 var(--space-4);
   letter-spacing: -0.01em;
 }
 
 h1 {
-  font-size: 1.5rem;
+  font-size: var(--fs-3xl);
 }
 h2 {
-  font-size: 1.125rem;
+  font-size: var(--fs-xl);
 }
 h3 {
-  font-size: 0.95rem;
+  font-size: var(--fs-lg);
 }
 
 .num {
@@ -78,40 +126,81 @@ a {
   outline-offset: 2px;
 }
 
+/* --- Controles de formulario ---
+   Cada vista los estilaba a mano con tres paddings distintos y sin
+   appearance, así que el navegador pintaba sus esquinas redondeadas y su
+   fondo gris contra un sistema deliberadamente cuadrado. Acá se unifican.
+   Los input[type=file] y [type=checkbox] quedan fuera a propósito. */
+input[type='text'],
+input[type='number'],
+input[type='search'],
+input:not([type]) {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xs);
+  background: var(--surface);
+  color: var(--ink);
+  padding: var(--space-3) var(--space-4);
+}
+
+select {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xs);
+  background-color: var(--surface);
+  color: var(--ink);
+  padding: var(--space-3) var(--space-4);
+  /* appearance:none saca la flecha del navegador, así que hay que dibujar la
+     nuestra. El stroke va codificado dentro de la data-URI porque un SVG
+     embebido no puede leer var() -- es el único color de este archivo que
+     vive fuera de :root y hay que cambiarlo a mano junto con --ink-soft. */
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%233c4d59' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--space-3) center;
+  padding-right: var(--space-8);
+}
+
 .stat-block {
   background: var(--surface);
   border: 1px solid var(--line);
   border-left: 3px solid var(--signal);
-  padding: 0.9rem 1rem;
+  padding: var(--space-6);
 }
 
 .stat-block__label {
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   color: var(--ink-soft);
-  margin-bottom: 0.25rem;
+  margin-bottom: var(--space-2);
 }
 
 .stat-block__value {
   font-family: var(--font-mono);
-  font-size: 1.5rem;
+  font-size: var(--fs-3xl);
   font-weight: 600;
 }
 
 .panel {
   background: var(--surface);
   border: 1px solid var(--line);
-  padding: 1rem;
+  padding: var(--space-6);
 }
 
 .chip {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: var(--space-3);
   border: 1px solid var(--line);
   background: var(--surface);
-  padding: 0.3rem 0.6rem;
-  font-size: 0.8rem;
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--fs-sm);
   color: var(--ink-soft);
+}
+
+/* Los chips son botones reales (filtros CCTE, tabs de tiempos, modos del
+   mapa): sin hover ni foco, lo único que señalaba que eran clickeables era
+   cursor:pointer. */
+.chip:hover {
+  border-color: var(--signal);
+  color: var(--signal-deep);
 }
 
 .chip--active {
@@ -122,13 +211,13 @@ a {
 table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.85rem;
+  font-size: var(--fs-md);
 }
 
 th,
 td {
   text-align: left;
-  padding: 0.5rem 0.6rem;
+  padding: var(--space-4);
   border-bottom: 1px solid var(--line);
 }
 
@@ -136,50 +225,33 @@ th {
   font-family: var(--font-ui);
   font-weight: 600;
   color: var(--ink-soft);
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
 }
 
 td.num {
   text-align: right;
 }
 
-.badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  font-size: 0.75rem;
-  padding: 0.15rem 0.5rem;
-  border: 1px solid currentColor;
-}
-
-.badge--ok {
-  color: var(--risk-ok);
-}
-.badge--mid {
-  color: var(--risk-mid);
-}
-.badge--high {
-  color: var(--risk-high);
-}
-
-.badge__dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: currentColor;
-}
-
 .btn {
   border: 1px solid var(--ink);
   background: var(--ink);
   color: var(--surface);
-  padding: 0.5rem 0.9rem;
+  padding: var(--space-4) var(--space-6);
   font-weight: 500;
 }
 
 .btn:hover {
   background: var(--signal-deep);
   border-color: var(--signal-deep);
+}
+
+/* Los botones que se deshabilitan durante una request (importar, guardar,
+   eliminar) no tenían ningún estado visual: no había forma de distinguir
+   "procesando" de "listo" más allá del texto. pointer-events:none además
+   evita que :hover siga pintando el estado activo por encima. */
+.btn:disabled {
+  opacity: 0.5;
+  pointer-events: none;
 }
 
 .btn--ghost {
@@ -203,16 +275,34 @@ td.num {
   color: var(--surface);
 }
 
+/* Estado vacío y estado de error son cosas distintas: hasta ahora
+   ErrorState.vue reutilizaba .empty-state, así que un fallo de red y una
+   base sin datos se renderizaban exactamente igual (caja gris punteada). */
 .empty-state {
-  padding: 2rem 1rem;
+  padding: var(--space-10) var(--space-6);
   text-align: left;
   color: var(--ink-soft);
   border: 1px dashed var(--line);
 }
 
+.error-state {
+  padding: var(--space-6);
+  text-align: left;
+  color: var(--risk-high);
+  background: color-mix(in srgb, var(--risk-high) 7%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--risk-high) 35%, transparent);
+  /* barra de color a la izquierda: la misma jerarquía que .stat-block
+     (DESIGN.md), para que el error no dependa solo del tono de fondo */
+  border-left: 3px solid var(--risk-high);
+}
+
+.error-state p {
+  margin: 0 0 var(--space-5);
+}
+
 .loading-state {
-  padding: 1.5rem 1rem;
+  padding: var(--space-8) var(--space-6);
   color: var(--ink-soft);
   font-family: var(--font-mono);
-  font-size: 0.85rem;
+  font-size: var(--fs-md);
 }

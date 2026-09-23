@@ -122,12 +122,8 @@ async function enviar() {
   color: var(--ink-soft);
 }
 
-.carga__form input,
-.carga__form select {
-  border: 1px solid var(--line);
-  padding: 0.45rem 0.5rem;
-  color: var(--ink);
-}
+/* input/select del formulario: los estilaba la vista con tres paddings
+   distintos, ahora lo unifica el global de tokens.css. */
 
 .carga__archivos {
   grid-column: 1 / -1;

@@ -1,6 +1,7 @@
 <script setup>
 import { onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import { Chart, LineController, LineElement, PointElement, LinearScale, CategoryScale, Tooltip, Filler } from 'chart.js'
+import { token, tokenConAlfa } from '../assets/tokens'
 
 // Filler hace falta: Chart.js tree-shakea los plugins, y sin registrar este
 // `fill: true` no pinta nada (el área del gráfico desaparecía en silencio).
@@ -24,8 +25,8 @@ function render() {
         {
           label: 'Mediciones',
           data: props.datos.map((d) => d.mediciones),
-          borderColor: '#0e7c8c',
-          backgroundColor: 'rgba(14, 124, 140, 0.15)',
+          borderColor: token('--signal', '#0e7c8c'),
+          backgroundColor: tokenConAlfa('--signal', 0.15, '#0e7c8c'),
           fill: true,
           tension: 0.25,
         },

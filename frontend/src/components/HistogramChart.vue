@@ -1,6 +1,7 @@
 <script setup>
 import { onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import { Chart, BarController, BarElement, LinearScale, CategoryScale, Tooltip } from 'chart.js'
+import { token } from '../assets/tokens'
 
 Chart.register(BarController, BarElement, LinearScale, CategoryScale, Tooltip)
 
@@ -18,7 +19,7 @@ function render() {
     type: 'bar',
     data: {
       labels: props.bins.map((b) => `${b.desde.toFixed(1)}–${b.hasta.toFixed(1)}`),
-      datasets: [{ label: 'Frecuencia', data: props.bins.map((b) => b.n), backgroundColor: '#0e7c8c' }],
+      datasets: [{ label: 'Frecuencia', data: props.bins.map((b) => b.n), backgroundColor: token('--signal', '#0e7c8c') }],
     },
     options: {
       responsive: true,
