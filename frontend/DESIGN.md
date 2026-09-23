@@ -21,8 +21,14 @@ hex en los `.vue`; los gráficos y el mapa los leen desde JS con `token()` de
 - `--line` — hairline de borde, sobre cualquier superficie
 - `--signal: #0E7C8C` — acento primario (teal-cian, evoca espectro/telecom)
 - `--signal-deep: #0B5C68` — hover/activo
-- `--risk-ok: #2F8F5B` / `--risk-mid: #C98A1F` / `--risk-high: #B23A3A` — semáforo,
-  SIEMPRE acompañado de texto ("Bajo"/"Moderado"/"Alto"), nunca solo color.
+- `--risk-ok: #26794D` / `--risk-mid: #9C6208` / `--risk-high: #B23A3A` —
+  semáforo de la UI (estado de riesgo/error), SIEMPRE acompañado de texto
+  ("Bajo"/"Moderado"/"Alto"), nunca solo color. Los tres pasan **WCAG AA
+  (≥4.5:1)** sobre `--surface` y `--paper`; `--risk-mid` era `#C98A1F`
+  (2.94:1) y `--risk-ok` era `#2F8F5B` (4.04:1).
+  **No confundir con el semáforo del mapa**: esa escala de 10 rangos vive en
+  el backend (`RANGOS_COLOR` en `app/core/config.py`, servida por
+  `GET /api/color-scale`) y es la que usan leyenda, marcadores y badges.
 - `--sin-dato` — neutro para "sin dato" (leyenda del mapa, marcadores, badges).
   Lo consume `colorScaleStore.colorPorPct(null)`, así que leyenda y puntos no
   pueden divergir.
@@ -64,3 +70,16 @@ y una barra de color a la izquierda (no shadow, no border-radius grande).
 (caja **roja con barra roja a la izquierda**). Error y vacío son cosas
 distintas y tienen que distinguirse de un vistazo: `ErrorState` usa
 `.error-state`, `.empty-state` queda reservado para "no hay datos".
+
+## Accesibilidad
+- Los controles interactivos son `<button>`/`<input>` reales, nunca
+  `<span @click>`: no hay nada clickeable que no sea alcanzable con Tab.
+- Un selector exclusivo (modos del mapa) es un `<fieldset>` con
+  `<legend class="sr-only">` y radios nativos, no un `div[role=radiogroup]`
+  con botones y `aria-pressed`.
+- `aria-label` sobre un `<div>` sin `role` **no** se expone como nombre
+  accesible: los contenedores con label llevan `role="list"`.
+- `.sr-only` (en `tokens.css`) oculta visualmente sin sacar el elemento del
+  árbol accesible. Cuando el control real queda en `.sr-only` dentro de una
+  etiqueta, `.chip:has(.sr-only:focus-visible)` pinta el anillo de foco en la
+  etiqueta — requiere `:has()`.

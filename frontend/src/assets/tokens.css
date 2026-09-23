@@ -13,8 +13,12 @@
   --line: rgba(16, 32, 43, 0.12);
   --signal: #0e7c8c;
   --signal-deep: #0b5c68;
-  --risk-ok: #2f8f5b;
-  --risk-mid: #c98a1f;
+  /* Semáforo de la UI (estado de datos/riesgo), NO el del mapa: esa escala
+     vive en el backend (RANGOS_COLOR) y llega por GET /api/color-scale.
+     Los tres pasan WCAG AA (>=4.5:1) sobre --surface y --paper.
+     --risk-mid era #c98a1f = 2.94:1, --risk-ok #2f8f5b = 4.04:1. */
+  --risk-ok: #26794d;
+  --risk-mid: #9c6208;
   --risk-high: #b23a3a;
   --sin-dato: #9aa5ab; /* neutro para "sin dato": leyenda, marcadores, badges */
 
@@ -104,6 +108,21 @@ h3 {
 .num {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
+}
+
+/* Oculto visualmente pero presente para lectores de pantalla y para el foco
+   de teclado (leyendas de fieldset, radios dentro de una etiqueta). */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }
 
 button,
@@ -206,6 +225,14 @@ select {
 .chip--active {
   border-color: var(--signal);
   color: var(--signal-deep);
+}
+
+/* El control real de los radios del mapa está en .sr-only dentro de la
+   etiqueta: sin esto el foco de teclado caía en un elemento de 1px y era
+   invisible, aunque el chip sí recibiera el click. Requiere :has(). */
+.chip:has(.sr-only:focus-visible) {
+  outline: 2px solid var(--signal);
+  outline-offset: 2px;
 }
 
 table {

@@ -105,23 +105,22 @@ function onLocalidadInput() {
 <template>
   <div class="mapa-vista">
     <div class="mapa-controles panel">
-      <div class="mapa-modos" role="radiogroup" aria-label="Qué puntos mostrar">
-        <button
-          class="chip"
-          :class="{ 'chip--active': modo === 'todos' }"
-          @click="modo = 'todos'"
-          aria-pressed="true"
-        >
+      <!-- Antes era un div[role=radiogroup] con botones que usaban
+           aria-pressed: el radiogroup exige hijos role=radio + aria-checked,
+           y aria-pressed estaba hardcodeado en "true" en el primero (siempre
+           "seleccionado") y ausente en el segundo. Radios nativos dan el
+           grupo, el aria-checked y la navegacion con flechas gratis. -->
+      <fieldset class="mapa-modos">
+        <legend class="sr-only">Qué puntos mostrar</legend>
+        <label class="chip" :class="{ 'chip--active': modo === 'todos' }">
+          <input v-model="modo" class="sr-only" type="radio" name="mapa-modo" value="todos" />
           🌎 Todos los puntos
-        </button>
-        <button
-          class="chip"
-          :class="{ 'chip--active': modo === 'max_localidad' }"
-          @click="modo = 'max_localidad'"
-        >
+        </label>
+        <label class="chip" :class="{ 'chip--active': modo === 'max_localidad' }">
+          <input v-model="modo" class="sr-only" type="radio" name="mapa-modo" value="max_localidad" />
           📍 Máximo por localidad
-        </button>
-      </div>
+        </label>
+      </fieldset>
 
       <label class="mapa-toggle">
         <input type="checkbox" v-model="aplicarFiltros" />
@@ -150,11 +149,13 @@ function onLocalidadInput() {
         localidad" o agregá filtros para ver el detalle completo.
       </p>
 
-      <div class="mapa-leyenda" aria-label="Referencia de niveles (% del límite normativo)">
-        <span v-for="r in escala.rangos" :key="r.etiqueta" class="mapa-leyenda__item">
+      <!-- role=list porque aria-label sobre un div sin role no se expone como
+           nombre accesible: el lector de pantalla no anunciaba la leyenda -->
+      <div class="mapa-leyenda" role="list" aria-label="Referencia de niveles (% del límite normativo)">
+        <span v-for="r in escala.rangos" :key="r.etiqueta" class="mapa-leyenda__item" role="listitem">
           <span class="mapa-leyenda__dot" :style="{ background: r.color }"></span>{{ r.etiqueta }}
         </span>
-        <span class="mapa-leyenda__item">
+        <span class="mapa-leyenda__item" role="listitem">
           <!-- colorPorPct(null) en vez de un hex suelto: es la misma fuente
                que usan los marcadores, así la leyenda no puede divergir -->
           <span class="mapa-leyenda__dot" :style="{ background: escala.colorPorPct(null) }"></span>Sin dato
@@ -184,6 +185,12 @@ function onLocalidadInput() {
 .mapa-modos {
   display: flex;
   gap: 0.5rem;
+  /* reset de <fieldset>: sin esto trae borde UA, margen y
+     min-inline-size:min-content que rompe el flex-wrap */
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-inline-size: 0;
 }
 
 .mapa-toggle {

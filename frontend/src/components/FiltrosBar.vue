@@ -61,9 +61,16 @@ function agregarAnio() {
       <div class="filtros__grupo">
         <h3>Provincia</h3>
         <div class="filtros__opciones">
-          <span v-for="p in filtros.provincia" :key="p" class="chip chip--active" @click="filtros.toggleProvincia(p)">
+          <button
+            v-for="p in filtros.provincia"
+            :key="p"
+            type="button"
+            class="chip chip--active"
+            :aria-label="`Quitar filtro de provincia: ${p}`"
+            @click="filtros.toggleProvincia(p)"
+          >
             {{ p }} ✕
-          </span>
+          </button>
         </div>
         <div class="filtros__input-row">
           <input
@@ -80,9 +87,16 @@ function agregarAnio() {
       <div class="filtros__grupo">
         <h3>Año</h3>
         <div class="filtros__opciones">
-          <span v-for="a in filtros.anio" :key="a" class="chip chip--active" @click="filtros.toggleAnio(a)">
+          <button
+            v-for="a in filtros.anio"
+            :key="a"
+            type="button"
+            class="chip chip--active"
+            :aria-label="`Quitar filtro de año: ${a}`"
+            @click="filtros.toggleAnio(a)"
+          >
             {{ a }} ✕
-          </span>
+          </button>
         </div>
         <div class="filtros__input-row">
           <input

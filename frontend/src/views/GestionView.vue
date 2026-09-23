@@ -163,18 +163,24 @@ const urlPdf = computed(() => {
         <div class="gestion__tiempos">
           <div class="gestion__tabs" role="tablist" aria-label="Desglose de tiempo trabajado">
             <button
+              id="tab-tiempo-diario"
               class="chip"
+              type="button"
               :class="{ 'chip--active': tabTiempo === 'diario' }"
               role="tab"
+              aria-controls="panel-tiempo"
               :aria-selected="tabTiempo === 'diario'"
               @click="tabTiempo = 'diario'"
             >
               Diario
             </button>
             <button
+              id="tab-tiempo-mensual"
               class="chip"
+              type="button"
               :class="{ 'chip--active': tabTiempo === 'mensual' }"
               role="tab"
+              aria-controls="panel-tiempo"
               :aria-selected="tabTiempo === 'mensual'"
               @click="tabTiempo = 'mensual'"
             >
@@ -182,38 +188,54 @@ const urlPdf = computed(() => {
             </button>
           </div>
 
-          <ErrorState v-if="errorTiempo" @reintentar="cargarTiempos" />
-          <LoadingState v-else-if="loadingTiempo" mensaje="Calculando tiempo trabajado…" />
-          <template v-else>
-            <EmptyState v-if="tabTiempo === 'diario' && !tiempoDiario?.length" mensaje="Sin jornadas registradas." />
-            <table v-else-if="tabTiempo === 'diario'">
-              <thead>
-                <tr><th>Fecha</th><th>Inicio</th><th>Fin</th><th>Duración</th></tr>
-              </thead>
-              <tbody>
-                <tr v-for="d in tiempoDiario" :key="`${d.fecha}-${d.nombre_archivo}`">
-                  <td>{{ d.fecha }}</td>
-                  <td class="num">{{ d.inicio }}</td>
-                  <td class="num">{{ d.fin }}</td>
-                  <td class="num">{{ d.duracion_fmt }}</td>
-                </tr>
-              </tbody>
-            </table>
+          <!-- El panel existía implícitamente pero no estaba declarado: los
+               tabs anunciaban aria-selected sin ningún panel asociado.
+               tabindex=0 porque el panel es una región que se recorre. -->
+          <div
+            id="panel-tiempo"
+            role="tabpanel"
+            tabindex="0"
+            :aria-labelledby="tabTiempo === 'diario' ? 'tab-tiempo-diario' : 'tab-tiempo-mensual'"
+          >
+            <ErrorState v-if="errorTiempo" @reintentar="cargarTiempos" />
+            <LoadingState v-else-if="loadingTiempo" mensaje="Calculando tiempo trabajado…" />
+            <template v-else>
+              <EmptyState
+                v-if="tabTiempo === 'diario' && !tiempoDiario?.length"
+                mensaje="Sin jornadas registradas."
+              />
+              <table v-else-if="tabTiempo === 'diario'">
+                <thead>
+                  <tr><th>Fecha</th><th>Inicio</th><th>Fin</th><th>Duración</th></tr>
+                </thead>
+                <tbody>
+                  <tr v-for="d in tiempoDiario" :key="`${d.fecha}-${d.nombre_archivo}`">
+                    <td>{{ d.fecha }}</td>
+                    <td class="num">{{ d.inicio }}</td>
+                    <td class="num">{{ d.fin }}</td>
+                    <td class="num">{{ d.duracion_fmt }}</td>
+                  </tr>
+                </tbody>
+              </table>
 
-            <EmptyState v-if="tabTiempo === 'mensual' && !tiempoMensual?.length" mensaje="Sin datos mensuales." />
-            <table v-else-if="tabTiempo === 'mensual'">
-              <thead>
-                <tr><th>Mes</th><th>Tiempo trabajado</th><th>Días con medición</th></tr>
-              </thead>
-              <tbody>
-                <tr v-for="m in tiempoMensual" :key="m.mes">
-                  <td>{{ m.mes }}</td>
-                  <td class="num">{{ m.tiempo_trabajado_fmt }}</td>
-                  <td class="num">{{ m.dias_con_medicion }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </template>
+              <EmptyState
+                v-if="tabTiempo === 'mensual' && !tiempoMensual?.length"
+                mensaje="Sin datos mensuales."
+              />
+              <table v-else-if="tabTiempo === 'mensual'">
+                <thead>
+                  <tr><th>Mes</th><th>Tiempo trabajado</th><th>Días con medición</th></tr>
+                </thead>
+                <tbody>
+                  <tr v-for="m in tiempoMensual" :key="m.mes">
+                    <td>{{ m.mes }}</td>
+                    <td class="num">{{ m.tiempo_trabajado_fmt }}</td>
+                    <td class="num">{{ m.dias_con_medicion }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </template>
+          </div>
         </div>
 
         <div class="gestion__editor">
