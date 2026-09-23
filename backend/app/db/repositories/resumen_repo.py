@@ -44,8 +44,14 @@ def eliminar_resumen_localidad(conn: sqlite3.Connection, ccte: str, provincia: s
 
 def recalcular_resumen_ccte(conn: sqlite3.Connection, ccte: str, ahora: str) -> None:
     cur = conn.execute(
+        # `ccte` ya está fijo por el WHERE, así que dentro de un CCTE la
+        # identidad de una localidad es (provincia, localidad). Contar solo
+        # `localidad` fusionaba los dos "San Pedro" (Catamarca y Santiago del
+        # Estero, ambas en el CCTE Salta): 20 en vez de 21. char(31) es el
+        # unit separator de ASCII, no puede aparecer en un nombre real.
+        # Ver el mismo criterio en obtener_kpis y en recalcular_resumen_anual.
         """SELECT SUM(mediciones) AS mediciones,
-                  COUNT(DISTINCT localidad) AS localidades,
+                  COUNT(DISTINCT provincia || char(31) || localidad) AS localidades,
                   COUNT(DISTINCT provincia) AS provincias,
                   MAX(resultado_max_vm) AS resultado_max_vm,
                   MAX(resultado_max_pct) AS resultado_max_pct,
@@ -86,7 +92,12 @@ def recalcular_resumen_ccte(conn: sqlite3.Connection, ccte: str, ahora: str) -> 
 
 def recalcular_resumen_provincia(conn: sqlite3.Connection, provincia: str, ahora: str) -> None:
     cur = conn.execute(
-        """SELECT SUM(mediciones) AS mediciones, COUNT(DISTINCT localidad) AS localidades,
+        # `provincia` está fija por el WHERE: dentro de una provincia la
+        # identidad es (ccte, localidad), porque el mismo nombre en dos CCTE
+        # distintos son dos lugares. Hoy no colisiona ninguna, pero el
+        # criterio tiene que ser el mismo que en el resto de los resúmenes.
+        """SELECT SUM(mediciones) AS mediciones,
+                  COUNT(DISTINCT ccte || char(31) || localidad) AS localidades,
                   COUNT(DISTINCT ccte) AS cctes, MAX(resultado_max_vm) AS resultado_max_vm,
                   MAX(resultado_max_pct) AS resultado_max_pct
            FROM resumen_localidad WHERE provincia = ?""",
@@ -116,7 +127,11 @@ def recalcular_resumen_provincia(conn: sqlite3.Connection, provincia: str, ahora
 
 def recalcular_resumen_anual(conn: sqlite3.Connection, anio: int, ahora: str) -> None:
     cur = conn.execute(
-        """SELECT COUNT(*) AS mediciones, COUNT(DISTINCT localidad) AS localidades,
+        # Solo `anio` está fijo, así que hace falta la clave completa:
+        # contar solo `localidad` daba 57 en vez de 58 (mismo caso de los dos
+        # "San Pedro"). char(31) = unit separator de ASCII, ver obtener_kpis.
+        """SELECT COUNT(*) AS mediciones,
+                  COUNT(DISTINCT ccte || char(31) || provincia || char(31) || localidad) AS localidades,
                   COUNT(DISTINCT provincia) AS provincias, COUNT(DISTINCT ccte) AS cctes,
                   MAX(resultado_vm) AS resultado_max_vm, MAX(resultado_pct) AS resultado_max_pct
            FROM mediciones WHERE anio = ?""",

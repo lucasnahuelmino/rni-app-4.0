@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { tiemposApi } from '../../services/domains'
 import DataPanel from '../DataPanel.vue'
 
@@ -52,31 +52,78 @@ const vacio = computed(() =>
 const mensajeVacio = computed(() =>
   tabTiempo.value === 'diario' ? 'Sin jornadas registradas.' : 'Sin datos mensuales.',
 )
+
+/**
+ * Roving tabindex (patrón APG de Tabs).
+ *
+ * Antes los dos <button> eran tabulables: con el teclado había que pasar
+ * por "Diario", después por "Mensual" y recién ahí llegar al panel, es
+ * decir un paso extra obligado por un control que no interesaba. Con
+ * roving, Tab entra una sola vez al grupo y las flechas navegan dentro.
+ *
+ * Se usa activación automática (la flecha ya cambia de tab): cambiar entre
+ * Diario y Mensual no cuesta nada y mover solo el foco obligaría a pulsar
+ * Enter después de cada flecha para ver el contenido.
+ */
+const ORDEN_TABS = ['diario', 'mensual']
+const refTabDiario = ref(null)
+const refTabMensual = ref(null)
+const refPorTab = { diario: refTabDiario, mensual: refTabMensual }
+
+function onTecladoTablist(event) {
+  const actual = ORDEN_TABS.indexOf(tabTiempo.value)
+  let destino = null
+  if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+    destino = (actual + 1) % ORDEN_TABS.length
+  } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+    destino = (actual - 1 + ORDEN_TABS.length) % ORDEN_TABS.length
+  } else if (event.key === 'Home') {
+    destino = 0
+  } else if (event.key === 'End') {
+    destino = ORDEN_TABS.length - 1
+  }
+  if (destino === null) return
+
+  event.preventDefault()
+  tabTiempo.value = ORDEN_TABS[destino]
+  // El foco tiene que viajar con el tab: si no, queda en un botón que ya
+  // tiene tabindex=-1 y deja de ser alcanzable.
+  nextTick(() => refPorTab[ORDEN_TABS[destino]].value?.focus())
+}
 </script>
 
 <template>
   <div class="gestion__tiempos">
-    <div class="gestion__tabs" role="tablist" aria-label="Desglose de tiempo trabajado">
+    <div
+      class="gestion__tabs"
+      role="tablist"
+      aria-label="Desglose de tiempo trabajado"
+      @keydown="onTecladoTablist"
+    >
       <button
         id="tab-tiempo-diario"
+        ref="refTabDiario"
         class="chip"
         type="button"
         :class="{ 'chip--active': tabTiempo === 'diario' }"
         role="tab"
         aria-controls="panel-tiempo"
         :aria-selected="tabTiempo === 'diario'"
+        :tabindex="tabTiempo === 'diario' ? 0 : -1"
         @click="tabTiempo = 'diario'"
       >
         Diario
       </button>
       <button
         id="tab-tiempo-mensual"
+        ref="refTabMensual"
         class="chip"
         type="button"
         :class="{ 'chip--active': tabTiempo === 'mensual' }"
         role="tab"
         aria-controls="panel-tiempo"
         :aria-selected="tabTiempo === 'mensual'"
+        :tabindex="tabTiempo === 'mensual' ? 0 : -1"
         @click="tabTiempo = 'mensual'"
       >
         Mensual

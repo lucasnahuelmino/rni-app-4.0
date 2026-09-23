@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, nextTick } from 'vue'
 import { localitiesApi } from '../../services/domains'
 
 /**
@@ -24,14 +24,51 @@ const confirmando = ref(false)
 const borrando = ref(false)
 const error = ref(null)
 
+// Tres refs para no perder el foco en ningún camino: el diálogo es
+// destructivo y el teclado no puede quedarse sin destino.
+const btnAbrir = ref(null)
+const btnConfirmar = ref(null)
+const cajaConfirmar = ref(null)
+
 function abrirConfirmacion() {
   confirmando.value = true
   error.value = null
+  // El botón que se clickeó desaparece (v-else), así que sin esto el foco
+  // cae en <body> y el usuario se queda sin forma de seguir con el teclado.
+  nextTick(() => btnConfirmar.value?.focus())
 }
 
 function cancelar() {
   confirmando.value = false
   error.value = null
+  nextTick(() => btnAbrir.value?.focus())
+}
+
+// Escape cierra y Tab no se escapa del diálogo mientras está abierto
+// (focus trap): sin esto se podía navegar hacia el resto de la página con
+// el diálogo destructivo abierto y sin ningún anuncio.
+function onTecladoConfirmar(event) {
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    cancelar()
+    return
+  }
+  if (event.key !== 'Tab' || !cajaConfirmar.value) return
+
+  const foco = [...cajaConfirmar.value.querySelectorAll(
+    'button:not([disabled]), [href], input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])',
+  )]
+  if (foco.length === 0) return
+
+  const primero = foco[0]
+  const ultimo = foco[foco.length - 1]
+  if (event.shiftKey && document.activeElement === primero) {
+    event.preventDefault()
+    ultimo.focus()
+  } else if (!event.shiftKey && document.activeElement === ultimo) {
+    event.preventDefault()
+    primero.focus()
+  }
 }
 
 async function eliminar() {
@@ -54,16 +91,35 @@ async function eliminar() {
 
 <template>
   <div class="gestion__danger">
-    <button v-if="!confirmando" type="button" class="btn btn--danger" @click="abrirConfirmacion">
+    <button
+      v-if="!confirmando"
+      ref="btnAbrir"
+      type="button"
+      class="btn btn--danger"
+      @click="abrirConfirmacion"
+    >
       Eliminar localidad
     </button>
-    <div v-else class="gestion__confirmar" role="alertdialog" aria-label="Confirmar eliminación">
+    <div
+      v-else
+      ref="cajaConfirmar"
+      class="gestion__confirmar"
+      role="alertdialog"
+      aria-label="Confirmar eliminación"
+      @keydown="onTecladoConfirmar"
+    >
       <p>
         Esto borra permanentemente las {{ localidad.mediciones }} mediciones de
         <strong>{{ localidad.localidad }}</strong>. No se puede deshacer.
       </p>
       <div class="acciones-fila">
-        <button type="button" class="btn btn--danger" :disabled="borrando" @click="eliminar">
+        <button
+          ref="btnConfirmar"
+          type="button"
+          class="btn btn--danger"
+          :disabled="borrando"
+          @click="eliminar"
+        >
           {{ borrando ? 'Eliminando…' : 'Sí, eliminar definitivamente' }}
         </button>
         <button type="button" class="btn btn--ghost" @click="cancelar">Cancelar</button>

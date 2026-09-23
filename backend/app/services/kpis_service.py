@@ -17,9 +17,15 @@ from app.schemas.filters import FiltrosQuery
 def obtener_kpis(conn: sqlite3.Connection, filtros: FiltrosQuery) -> dict:
     where, params = construir_where(filtros.ccte, filtros.provincia, filtros.anio)
 
+    # "Localidades" son lugares distintos, no nombres distintos: hay DOS
+    # "San Pedro" (Catamarca y Santiago del Estero) y contar solo `localidad`
+    # las fusionaba en una (60 en vez de 61). La identidad de una localidad es
+    # su clave completa, así que se cuenta la tupla concatenada -- SQLite no
+    # acepta `COUNT(DISTINCT (a, b, c))` ("row value misused"). char(31) es el
+    # unit separator de ASCII: no puede aparecer en ningún nombre real.
     row = conn.execute(
         f"""SELECT COUNT(*) AS registros_totales,
-                   COUNT(DISTINCT localidad) AS localidades,
+                   COUNT(DISTINCT ccte || char(31) || provincia || char(31) || localidad) AS localidades,
                    COUNT(DISTINCT provincia) AS provincias,
                    COUNT(DISTINCT ccte) AS cctes,
                    AVG(resultado_pct) AS promedio_pct,

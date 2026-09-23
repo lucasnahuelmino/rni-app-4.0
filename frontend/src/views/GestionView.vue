@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, nextTick } from 'vue'
 import { localitiesApi } from '../services/domains'
 import { useFetchOnFiltros } from '../composables/useFetchOnFiltros'
 import EmptyState from '../components/EmptyState.vue'
@@ -17,6 +17,7 @@ const { data: localidades, loading, error, reload } = useFetchOnFiltros(
 )
 
 const seleccionada = ref(null)
+const detalle = ref(null)
 
 function seleccionar(row) {
   seleccionada.value = row
@@ -27,6 +28,12 @@ function seleccionar(row) {
 async function despuesDeCambiar() {
   seleccionada.value = null
   await reload()
+  // El botón que tenía el foco ya no existe (la localidad se quitó de la
+  // selección y puede haber salido de la lista), así que sin esto el foco
+  // se pierde en <body>. Va al contenedor del detalle, que es lo que acaba
+  // de cambiar: anuncia el estado vacío "Elegí una localidad".
+  await nextTick()
+  detalle.value?.focus()
 }
 </script>
 
@@ -41,7 +48,7 @@ async function despuesDeCambiar() {
       @reintentar="reload"
     />
 
-    <section class="panel gestion__detalle">
+    <section ref="detalle" class="panel gestion__detalle" tabindex="-1">
       <EmptyState
         v-if="!seleccionada"
         mensaje="Elegí una localidad de la lista para ver el detalle."
