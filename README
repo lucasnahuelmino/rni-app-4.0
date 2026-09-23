@@ -17,3 +17,7 @@ backend/
 frontend/
 data/
 docs/
+
+
+BACKEND
+python -m uvicorn app.main:app --port 8000
