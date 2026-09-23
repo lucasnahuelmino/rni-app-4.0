@@ -1,6 +1,10 @@
 """Migración: rni.db (esquema Streamlit actual, tabla `mediciones_rni`) ->
 rni_v2.db (esquema nuevo, ver Fase 2).
 
+Además de traducir el esquema, corrige el signo de las coordenadas que el
+pipeline legacy guardó como valores absolutos (lat > 0 y lon > 0) -- ver la
+nota "Corrección de signo de coordenadas" más abajo.
+
 Uso:
     python -m app.db.migrate --origen /ruta/a/rni.db --destino /ruta/a/rni_v2.db
 
@@ -23,7 +27,7 @@ from pathlib import Path
 
 from app.calculations.dates import add_fecha_hora, anio_de_fecha_hora
 from app.calculations.rni import resultado_pct
-from app.core.config import SCHEMA_PATH
+from app.core.config import ARGENTINA_BBOX, SCHEMA_PATH
 from app.services import statistics as statistics_service
 
 
@@ -49,6 +53,28 @@ def migrar(origen: Path, destino: Path) -> None:
         df = df.rename(columns={"Nombre Archivo": "nombre_archivo"})
         df = add_fecha_hora(df, fecha_col="Fecha", hora_col="Hora", out_col="fecha_hora")
         df["anio"] = df["fecha_hora"].apply(anio_de_fecha_hora)
+
+    # Corrección de signo de coordenadas ---------------------------------
+    # Los lotes legacy guardaron lat/lon como valores absolutos. En
+    # `mediciones_rni` eso afecta 209.990 de 219.818 filas (95.5%), todas con
+    # FechaCarga 2026-06/07 y parte de 08/09; las 9.828 restantes (CCTE Salta,
+    # 2026-08 y 09) ya venían bien.
+    #
+    # Se corrige SOLO cuando ambos signos están mal a la vez (lat>0 y lon>0):
+    # Argentina está entera en el hemisferio sur y oeste, así que esa
+    # combinación no puede ser un punto válido, y las filas que ya estaban
+    # bien quedan intactas. Verificado antes de aplicar: al negar ambos,
+    # las 209.990 filas caen dentro de ARGENTINA_BBOX -- ninguna queda fuera.
+    # NaN queda afuera de la comparación, así que las filas sin coordenada
+    # no se tocan.
+    n_signo_malo = 0
+    if not df.empty and {"Lat", "Lon"} <= set(df.columns):
+        malas = (df["Lat"] > 0) & (df["Lon"] > 0)
+        n_signo_malo = int(malas.sum())
+        if n_signo_malo:
+            df.loc[malas, "Lat"] = -df.loc[malas, "Lat"]
+            df.loc[malas, "Lon"] = -df.loc[malas, "Lon"]
+    print(f"Coordenadas con ambos signos corregidas: {n_signo_malo}.")
 
     filas_nuevas = []
     for _, fila in df.iterrows():
@@ -144,10 +170,40 @@ def _validar(origen_conn: sqlite3.Connection, destino_conn: sqlite3.Connection) 
     print(f"Filas con resultado_pct distinto entre origen y destino (fuera de tolerancia): {diffs}")
     ok &= diffs == 0
 
+    # Argentina está entera en el hemisferio sur (lat < 0) y oeste (lon < 0).
+    # Si en el destino queda algún lat > 0 o lon > 0, la corrección de signo
+    # no se aplicó -- esos puntos caerían fuera del país en el mapa. Es la
+    # condición dura; el bbox se imprime solo como señal, porque un punto
+    # puede quedar legítimamente en el borde.
+    signo_malo = destino_conn.execute(
+        "SELECT COUNT(*) AS n FROM mediciones WHERE lat > 0 OR lon > 0"
+    ).fetchone()["n"]
+    print(f"Coordenadas con signo imposible para Argentina -- destino: {signo_malo}")
+    ok &= signo_malo == 0
+
+    fuera_bbox = destino_conn.execute(
+        "SELECT COUNT(*) AS n FROM mediciones"
+        " WHERE lat IS NOT NULL AND lon IS NOT NULL"
+        " AND NOT (lat BETWEEN ? AND ? AND lon BETWEEN ? AND ?)",
+        (
+            ARGENTINA_BBOX["lat_min"], ARGENTINA_BBOX["lat_max"],
+            ARGENTINA_BBOX["lon_min"], ARGENTINA_BBOX["lon_max"],
+        ),
+    ).fetchone()["n"]
+    print(f"Coordenadas fuera de ARGENTINA_BBOX (informativo, no falla): {fuera_bbox}")
+
     return ok
 
 
 if __name__ == "__main__":
+    # Sin esto la stdout de Windows queda en cp1252 y el print final de
+    # éxito ("✅") revienta con UnicodeEncodeError DESPUÉS de validar bien:
+    # el script salía con código 1 sobre una migración exitosa, que es
+    # exactamente la señal que el README le dice al operador que interprete
+    # como "no promover a producción".
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--origen", required=True, type=Path)
     parser.add_argument("--destino", required=True, type=Path)
