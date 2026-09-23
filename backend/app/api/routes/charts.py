@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from app.core.deps import get_db
 from app.schemas.filters import FiltrosQuery, filtros_query
@@ -10,7 +10,7 @@ router = APIRouter()
 
 
 @router.get("/histogram")
-def get_histogram(campo: str = "resultado_pct", bins: int = 20,
+def get_histogram(campo: str = "resultado_pct", bins: int = Query(20, ge=1, le=500),
                    filtros: FiltrosQuery = Depends(filtros_query), conn=Depends(get_db)):
     campo = "resultado_pct" if campo not in ("resultado_pct", "resultado_vm") else campo
     where, params = construir_where(filtros.ccte, filtros.provincia, filtros.anio)

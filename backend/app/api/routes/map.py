@@ -35,7 +35,18 @@ def get_map(bbox: str | None = None, pct_min: float | None = None, modo: str = "
     extra = ["lat IS NOT NULL", "lon IS NOT NULL"]
 
     if bbox:
-        lat_min, lat_max, lon_min, lon_max = map(float, bbox.split(","))
+        # Sin esta validación, un bbox malformado ("a,b" o "1,2,3") llegaba
+        # como ValueError/unpacking error y salía como 500 en vez de 400.
+        partes = [p.strip() for p in bbox.split(",")]
+        if len(partes) != 4:
+            raise HTTPException(
+                status_code=400,
+                detail="bbox debe ser 'lat_min,lat_max,lon_min,lon_max' (4 valores)",
+            )
+        try:
+            lat_min, lat_max, lon_min, lon_max = (float(p) for p in partes)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="bbox debe contener 4 números") from None
         extra.append("lat BETWEEN ? AND ?")
         extra.append("lon BETWEEN ? AND ?")
         params += [lat_min, lat_max, lon_min, lon_max]

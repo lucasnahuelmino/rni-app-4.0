@@ -17,13 +17,13 @@ const { data: histograma, loading: loadingHist, error: errorHist, reload: reload
 )
 watch(campoHistograma, reloadHist)
 
-const { data: tendencia, loading: loadingTendencia } = useFetchOnFiltros(
+const { data: tendencia, loading: loadingTendencia, error: errorTendencia, reload: reloadTendencia } = useFetchOnFiltros(
   async () => (await chartsApi.getMonthlyTrend()).data,
   { watchFiltros: false },
 )
 
 const metricaRanking = ref('resultado_prom_pct')
-const { data: ranking, loading: loadingRanking, reload: reloadRanking } = useFetchOnFiltros(
+const { data: ranking, loading: loadingRanking, error: errorRanking, reload: reloadRanking } = useFetchOnFiltros(
   async () => (await localitiesApi.getTopLocalities(metricaRanking.value, 10)).data,
   { watchFiltros: false },
 )
@@ -32,7 +32,7 @@ watch(metricaRanking, reloadRanking)
 // Horas trabajadas y días con medición por CCTE -- ya vienen precalculados
 // en resumen_ccte (services/statistics.py los mantiene actualizados en cada
 // import), así que esto solo los muestra, no recalcula nada en el navegador.
-const { data: ccteSummary, loading: loadingCcte } = useFetchOnFiltros(
+const { data: ccteSummary, loading: loadingCcte, error: errorCcte, reload: reloadCcte } = useFetchOnFiltros(
   async () => (await kpisApi.getCcteSummary()).data,
   { watchFiltros: false },
 )
@@ -63,7 +63,8 @@ const { data: tiempoMensual, loading: loadingTiempoMensual, error: errorTiempoMe
 
     <section class="panel">
       <h2>Tendencia mensual (mediciones)</h2>
-      <LoadingState v-if="loadingTendencia" />
+      <ErrorState v-if="errorTendencia" @reintentar="reloadTendencia" />
+      <LoadingState v-else-if="loadingTendencia" />
       <EmptyState v-else-if="!tendencia?.length" />
       <MonthlyTrendChart v-else :datos="tendencia" />
     </section>
@@ -89,7 +90,8 @@ const { data: tiempoMensual, loading: loadingTiempoMensual, error: errorTiempoMe
 
     <section class="panel">
       <h2>Horas trabajadas y días con medición por CCTE</h2>
-      <LoadingState v-if="loadingCcte" />
+      <ErrorState v-if="errorCcte" @reintentar="reloadCcte" />
+      <LoadingState v-else-if="loadingCcte" />
       <EmptyState v-else-if="!ccteSummary?.length" />
       <table v-else>
         <thead>
@@ -116,7 +118,8 @@ const { data: tiempoMensual, loading: loadingTiempoMensual, error: errorTiempoMe
           <option value="mediciones">Cantidad de mediciones</option>
         </select>
       </div>
-      <LoadingState v-if="loadingRanking" />
+      <ErrorState v-if="errorRanking" @reintentar="reloadRanking" />
+      <LoadingState v-else-if="loadingRanking" />
       <EmptyState v-else-if="!ranking?.length" />
       <table v-else>
         <thead>

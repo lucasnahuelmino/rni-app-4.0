@@ -69,6 +69,31 @@ def filas_por_localidad(conn: sqlite3.Connection, ccte: str, provincia: str, loc
     return [dict(r) for r in cur.fetchall()]
 
 
+def periodos_por_localidad(conn: sqlite3.Connection, ccte: str, provincia: str,
+                           localidad: str) -> tuple[set[int], set[str]]:
+    """(años, meses "YYYY-MM") que ocupa esta localidad.
+
+    Se tiene que leer ANTES de un DELETE: una vez borradas las filas no hay
+    forma de saber qué filas de `resumen_anual`/`resumen_mensual` quedaron
+    desactualizadas. Ver `services/measurements.eliminar_localidad`.
+    """
+    cur = conn.execute(
+        """SELECT DISTINCT anio FROM mediciones
+           WHERE ccte = ? AND provincia = ? AND localidad = ? AND anio IS NOT NULL""",
+        (ccte, provincia, localidad),
+    )
+    anios = {int(r["anio"]) for r in cur.fetchall()}
+
+    cur = conn.execute(
+        """SELECT DISTINCT substr(fecha_hora, 1, 7) AS mes FROM mediciones
+           WHERE ccte = ? AND provincia = ? AND localidad = ?
+             AND fecha_hora IS NOT NULL AND fecha_hora <> ''""",
+        (ccte, provincia, localidad),
+    )
+    meses = {r["mes"] for r in cur.fetchall() if r["mes"]}
+    return anios, meses
+
+
 def eliminar_por_localidad(conn: sqlite3.Connection, ccte: str, provincia: str, localidad: str) -> int:
     cur = conn.execute(
         "DELETE FROM mediciones WHERE ccte = ? AND provincia = ? AND localidad = ?",

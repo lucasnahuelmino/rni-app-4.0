@@ -98,6 +98,14 @@ def test_eliminar_localidad_limpia_resumenes(conn):
         conn, ccte="Posadas", provincia="Misiones", localidad="Posadas Centro",
         expediente=None, archivos=[("a.xlsx", _df_excel_sintetico())],
     )
+    # Sanity check: el import sí dejó las 4 tablas de agregación pobladas.
+    # (Todas las fechas sintéticas caen en 2025-03, así que hay 1 mes y 1 año.)
+    assert conn.execute("SELECT COUNT(*) AS n FROM resumen_anual").fetchone()["n"] == 1
+    assert conn.execute("SELECT COUNT(*) AS n FROM resumen_mensual").fetchone()["n"] == 1
+    assert conn.execute(
+        "SELECT COUNT(*) AS n FROM resumen_provincia WHERE provincia='Misiones'"
+    ).fetchone()["n"] == 1
+
     measurements.eliminar_localidad(conn, "Posadas", "Misiones", "Posadas Centro")
 
     quedan = conn.execute("SELECT COUNT(*) AS n FROM mediciones WHERE localidad='Posadas Centro'").fetchone()["n"]
@@ -106,6 +114,45 @@ def test_eliminar_localidad_limpia_resumenes(conn):
     ).fetchone()
     assert quedan == 0
     assert resumen is None
+
+    # Regresión: al borrar no alcanza con limpiar resumen_localidad -- como ya
+    # no quedan filas de la localidad, recalcular() no puede adivinar qué
+    # años/meses ocupaba. Sin `periodos_afectados` estas 4 tablas seguían
+    # contando las 3 mediciones borradas.
+    assert conn.execute("SELECT COUNT(*) AS n FROM resumen_anual").fetchone()["n"] == 0
+    assert conn.execute("SELECT COUNT(*) AS n FROM resumen_mensual").fetchone()["n"] == 0
+    assert conn.execute(
+        "SELECT COUNT(*) AS n FROM resumen_provincia WHERE provincia='Misiones'"
+    ).fetchone()["n"] == 0
+    assert conn.execute("SELECT COUNT(*) AS n FROM resumen_provincia_ccte").fetchone()["n"] == 0
+
+
+def test_eliminar_una_de_dos_localidades_solo_deja_fuera_sus_periodos(conn):
+    """Si quedan otras localidades con mediciones en el mismo período, ese
+    período se RECALCULA (no se borra) y queda con lo que sigue vivo.
+
+    Ambas localidades comparten año 2025 y mes 2025-03, así que es el caso
+    donde un borrado ingenuo dejaba los conteos viejos en vez de restarlos."""
+    import_service.importar_lote(
+        conn, ccte="Posadas", provincia="Misiones", localidad="Posadas Centro",
+        expediente=None, archivos=[("a.xlsx", _df_excel_sintetico())],
+    )
+    import_service.importar_lote(
+        conn, ccte="Posadas", provincia="Misiones", localidad="Otra Localidad",
+        expediente=None, archivos=[("b.xlsx", _df_excel_sintetico())],
+    )
+    assert conn.execute("SELECT mediciones FROM resumen_anual").fetchone()["mediciones"] == 6
+
+    measurements.eliminar_localidad(conn, "Posadas", "Misiones", "Posadas Centro")
+
+    anual = conn.execute("SELECT * FROM resumen_anual").fetchall()
+    assert len(anual) == 1
+    assert anual[0]["mediciones"] == 3  # solo lo de "Otra Localidad"
+
+    mensual = conn.execute("SELECT * FROM resumen_mensual").fetchall()
+    assert len(mensual) == 1
+    assert mensual[0]["mes"] == "2025-03"
+    assert mensual[0]["mediciones"] == 3
 
 
 def test_diagnostico_detecta_rechazados_y_coordenadas(conn):

@@ -10,9 +10,10 @@ pip install -r requirements.txt
 ```
 pytest tests/ -v
 ```
-29 tests, cubren fórmulas, fechas, coordenadas, importación + recálculo de
+Los tests cubren fórmulas, fechas, coordenadas, importación + recálculo de
 resúmenes, KPIs, edición/borrado de localidades, diagnóstico y generación de
-informes.
+informes. La cantidad exacta cambia con el código -- contalos con
+`pytest tests/ --co -q | Select-Object -Last 1`.
 
 ## Levantar la API
 ```

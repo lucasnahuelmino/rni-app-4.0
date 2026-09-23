@@ -110,14 +110,16 @@ def test_reports_endpoints_via_http(client):
         files={"archivos": ("a.xlsx", _excel_bytes_estilo_enacom(),
                              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
     )
-    resp_word = client.post(
+    # El frontend los baja como <a href>, que siempre manda GET -- si esto
+    # fuera POST la descarga devolvería 405.
+    resp_word = client.get(
         "/api/reports/word",
         params={"ccte": "Posadas", "provincia": "Misiones", "localidad": "Posadas Centro"},
     )
     assert resp_word.status_code == 200
     assert len(resp_word.content) > 0
 
-    resp_pdf = client.post(
+    resp_pdf = client.get(
         "/api/reports/pdf",
         params={"ccte": "Posadas", "provincia": "Misiones", "localidad": "Posadas Centro"},
     )

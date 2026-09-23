@@ -1,8 +1,10 @@
 <script setup>
 import { onMounted, onBeforeUnmount, ref, watch } from 'vue'
-import { Chart, LineController, LineElement, PointElement, LinearScale, CategoryScale, Tooltip } from 'chart.js'
+import { Chart, LineController, LineElement, PointElement, LinearScale, CategoryScale, Tooltip, Filler } from 'chart.js'
 
-Chart.register(LineController, LineElement, PointElement, LinearScale, CategoryScale, Tooltip)
+// Filler hace falta: Chart.js tree-shakea los plugins, y sin registrar este
+// `fill: true` no pinta nada (el área del gráfico desaparecía en silencio).
+Chart.register(LineController, LineElement, PointElement, LinearScale, CategoryScale, Tooltip, Filler)
 
 const props = defineProps({
   datos: { type: Array, required: true }, // [{mes, mediciones}]

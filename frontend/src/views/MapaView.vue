@@ -23,6 +23,14 @@ const mapContainer = ref(null)
 let mapa = null
 let capaMarcadores = null
 
+// El popup se construye como HTML y el backend devuelve texto libre
+// (localidad/CCTE), así que hay que escaparlo: sin esto cualquier dato con
+// <img onerror=...> se ejecutaba en la sesión de quien abría el mapa.
+const ESCAPAR = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }
+function escaparHtml(valor) {
+  return String(valor ?? '').replace(/[&<>"']/g, (c) => ESCAPAR[c])
+}
+
 async function cargarPuntos() {
   loading.value = true
   error.value = null
@@ -49,9 +57,10 @@ async function cargarPuntos() {
         weight: 1,
       })
         .bindPopup(
-          `<strong>${p.localidad}</strong> (${p.ccte})<br/>${p.resultado_vm?.toFixed(2) ?? '—'} V/m` +
+          `<strong>${escaparHtml(p.localidad)}</strong> (${escaparHtml(p.ccte)})<br/>` +
+            `${p.resultado_vm != null ? escaparHtml(p.resultado_vm.toFixed(2)) : '—'} V/m` +
             (p.resultado_pct != null
-              ? ` · ${p.resultado_pct.toFixed(1)}% · ${escala.etiquetaPorPct(p.resultado_pct)}`
+              ? ` · ${escaparHtml(p.resultado_pct.toFixed(1))}% · ${escaparHtml(escala.etiquetaPorPct(p.resultado_pct))}`
               : ''),
         )
         .addTo(capaMarcadores)

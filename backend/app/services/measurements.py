@@ -9,8 +9,14 @@ from app.services import statistics as statistics_service
 
 
 def eliminar_localidad(conn: sqlite3.Connection, ccte: str, provincia: str, localidad: str) -> int:
+    # Hay que leer los períodos ANTES del DELETE: una vez que las filas
+    # desaparecen ya no queda rastro de qué años/meses ocupaban, y sin eso
+    # `recalcular` no puede refrescar resumen_anual / resumen_mensual
+    # (quedarían contando mediciones que ya no existen).
+    periodos = mediciones_repo.periodos_por_localidad(conn, ccte, provincia, localidad)
+
     filas_borradas = mediciones_repo.eliminar_por_localidad(conn, ccte, provincia, localidad)
-    statistics_service.recalcular(conn, {(ccte, provincia, localidad)})
+    statistics_service.recalcular(conn, {(ccte, provincia, localidad)}, periodos_afectados=periodos)
     return filas_borradas
 
 

@@ -19,12 +19,12 @@ const { data: ccteSummary, loading: loadingCcte, error: errorCcte, reload: reloa
   { watchFiltros: false },
 )
 
-const { data: topLocalidades, loading: loadingTop } = useFetchOnFiltros(
+const { data: topLocalidades, loading: loadingTop, error: errorTop, reload: reloadTop } = useFetchOnFiltros(
   async () => (await localitiesApi.getTopLocalities('resultado_max_vm', 5)).data,
   { watchFiltros: false },
 )
 
-const { data: tendencia, loading: loadingTendencia } = useFetchOnFiltros(
+const { data: tendencia, loading: loadingTendencia, error: errorTendencia, reload: reloadTendencia } = useFetchOnFiltros(
   async () => (await chartsApi.getMonthlyTrend()).data,
   { watchFiltros: false },
 )
@@ -76,7 +76,8 @@ const picoTexto = computed(() => {
     <div class="dashboard__cols">
       <section aria-labelledby="top-titulo" class="panel">
         <h2 id="top-titulo">Top 5 localidades (máximo V/m)</h2>
-        <LoadingState v-if="loadingTop" />
+        <ErrorState v-if="errorTop" @reintentar="reloadTop" />
+        <LoadingState v-else-if="loadingTop" />
         <EmptyState v-else-if="!topLocalidades?.length" />
         <table v-else>
           <thead>
@@ -100,7 +101,8 @@ const picoTexto = computed(() => {
 
       <section aria-labelledby="tendencia-titulo" class="panel">
         <h2 id="tendencia-titulo">Tendencia mensual</h2>
-        <LoadingState v-if="loadingTendencia" />
+        <ErrorState v-if="errorTendencia" @reintentar="reloadTendencia" />
+        <LoadingState v-else-if="loadingTendencia" />
         <EmptyState v-else-if="!tendencia?.length" />
         <MonthlyTrendChart v-else :datos="tendencia" />
       </section>

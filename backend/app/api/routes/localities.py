@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from app.calculations.dates import format_timedelta_long
@@ -70,7 +70,9 @@ def delete_locality(localidad: str, ccte: str, provincia: str, conn=Depends(get_
 
 
 @router.get("/top-localities")
-def get_top_localities(metric: str = "resultado_max_vm", limit: int = 5, conn=Depends(get_db)):
+def get_top_localities(metric: str = "resultado_max_vm",
+                        limit: int = Query(5, ge=1, le=500),
+                        conn=Depends(get_db)):
     columnas_validas = {
         "resultado_max_vm", "resultado_max_pct", "resultado_prom_pct", "mediciones",
     }

@@ -9,8 +9,8 @@ from app.services import reports as reports_service
 router = APIRouter()
 
 
-@router.post("/reports/word")
-def post_report_word(ccte: str, provincia: str, localidad: str, ambito: str = "Localidad", conn=Depends(get_db)):
+@router.get("/reports/word")
+def get_report_word(ccte: str, provincia: str, localidad: str, ambito: str = "Localidad", conn=Depends(get_db)):
     datos = reports_service.obtener_datos_informe(conn, ccte, provincia, localidad)
     buffer = reports_service.generar_word(datos, localidad=localidad, ambito=ambito)
     return StreamingResponse(
@@ -20,8 +20,8 @@ def post_report_word(ccte: str, provincia: str, localidad: str, ambito: str = "L
     )
 
 
-@router.post("/reports/pdf")
-def post_report_pdf(ccte: str, provincia: str, localidad: str, ambito: str = "Localidad", conn=Depends(get_db)):
+@router.get("/reports/pdf")
+def get_report_pdf(ccte: str, provincia: str, localidad: str, ambito: str = "Localidad", conn=Depends(get_db)):
     datos = reports_service.obtener_datos_informe(conn, ccte, provincia, localidad)
     buffer = reports_service.generar_pdf(datos, localidad=localidad, ambito=ambito)
     return StreamingResponse(

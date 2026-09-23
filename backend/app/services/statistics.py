@@ -9,8 +9,17 @@ from app.calculations.statistics import agregar_mediciones
 from app.db.repositories import mediciones_repo, resumen_repo
 
 
-def recalcular(conn: sqlite3.Connection, claves: set[tuple[str, str, str]]) -> None:
-    """`claves` es un set de (ccte, provincia, localidad) a recalcular."""
+def recalcular(conn: sqlite3.Connection, claves: set[tuple[str, str, str]],
+               periodos_afectados: tuple[set[int], set[str]] | None = None) -> None:
+    """`claves` es un set de (ccte, provincia, localidad) a recalcular.
+
+    `periodos_afectados` = (años, meses "YYYY-MM") que hay que recalcular
+    aunque `claves` no aporte filas. Hace falta cuando se BORRAN filas: el
+    bucle de abajo solo puede leer años/meses de las filas que siguen vivas,
+    así que sin este dato `resumen_anual`/`resumen_mensual` quedarían
+    contando mediciones que ya no existen. Ver
+    `services/measurements.eliminar_localidad`.
+    """
     ahora = datetime.now(timezone.utc).isoformat()
     cctes_tocados: set[str] = set()
     provincias_tocadas: set[str] = set()
@@ -43,6 +52,10 @@ def recalcular(conn: sqlite3.Connection, claves: set[tuple[str, str, str]]) -> N
         cctes_tocados.add(ccte)
         provincias_tocadas.add(provincia)
         pares_provincia_ccte.add((provincia, ccte))
+
+    if periodos_afectados:
+        anios_tocados |= periodos_afectados[0]
+        meses_tocados |= periodos_afectados[1]
 
     for ccte in cctes_tocados:
         resumen_repo.recalcular_resumen_ccte(conn, ccte, ahora)
