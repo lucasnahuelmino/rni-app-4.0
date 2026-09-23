@@ -25,8 +25,8 @@ function render() {
         {
           label: 'Mediciones',
           data: props.datos.map((d) => d.mediciones),
-          borderColor: token('--signal', '#0e7c8c'),
-          backgroundColor: tokenConAlfa('--signal', 0.15, '#0e7c8c'),
+          borderColor: token('--signal', '#1a4fbf'),
+          backgroundColor: tokenConAlfa('--signal', 0.15, '#1a4fbf'),
           fill: true,
           tension: 0.25,
         },

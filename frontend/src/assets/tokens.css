@@ -5,14 +5,26 @@
    mismos valores se leen desde JS en src/assets/tokens.js. Mantené ambos
    archivos sincronizados por el nombre del token, nunca por el valor. */
 :root {
-  /* --- Color --- */
-  --ink: #10202b;
-  --ink-soft: #3c4d59;
-  --paper: #f4f6f5;
+  /* --- Color ---
+     Paleta institucional ENACOM. `--ink` es EXACTAMENTE el azul del logo
+     oficial (src/assets/logoenacom.png, monocromático #0B1742); el resto son
+     azules derivados de ese. Todos los tokens de texto pasan WCAG AA
+     (>=4.5:1) sobre --surface y --paper, medido y no estimado: ver
+     DESIGN.md, sección Color. El acento que cae SOBRE el sidebar tiene su
+     propio token, porque un azul legible sobre blanco no es visible sobre
+     azul marino. */
+  --ink: #0b1742;
+  --ink-soft: #3d4670;
+  --paper: #f4f6fa;
   --surface: #ffffff;
-  --line: rgba(16, 32, 43, 0.12);
-  --signal: #0e7c8c;
-  --signal-deep: #0b5c68;
+  --line: rgba(11, 23, 66, 0.12);
+  --signal: #1a4fbf;
+  --signal-deep: #0e2e73;
+  /* Acento sobre --ink (sidebar: ícono, borde del link activo, anillo de
+     foco). --signal (#1a4fbf) sobre --ink da 2.52:1, debajo del 3:1 mínimo
+     de WCAG para elementos gráficos; este azul claro da 6.15:1. No usarlo
+     sobre blanco -- allí corresponde --signal, que da 7.21:1. */
+  --signal-on-ink: #6e96ff;
   /* Semáforo de la UI (estado de datos/riesgo), NO el del mapa: esa escala
      vive en el backend (RANGOS_COLOR) y llega por GET /api/color-scale.
      Los tres pasan WCAG AA (>=4.5:1) sobre --surface y --paper.
@@ -181,7 +193,7 @@ select {
      embebido no puede leer var() -- es el único color de este archivo que
      vive fuera de :root y hay que cambiarlo a mano junto con --ink-soft. */
   appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%233c4d59' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%233d4670' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right var(--space-3) center;
   padding-right: var(--space-8);
@@ -223,9 +235,8 @@ select {
   color: var(--ink-soft);
 }
 
-/* Los chips son botones reales (filtros CCTE, tabs de tiempos, modos del
-   mapa): sin hover ni foco, lo único que señalaba que eran clickeables era
-   cursor:pointer. */
+/* Los chips son botones reales (filtros CCTE, tabs de tiempos): sin hover ni
+   foco, lo único que señalaba que eran clickeables era cursor:pointer. */
 .chip:hover {
   border-color: var(--signal);
   color: var(--signal-deep);

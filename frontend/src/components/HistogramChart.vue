@@ -19,7 +19,7 @@ function render() {
     type: 'bar',
     data: {
       labels: props.bins.map((b) => `${b.desde.toFixed(1)}–${b.hasta.toFixed(1)}`),
-      datasets: [{ label: 'Frecuencia', data: props.bins.map((b) => b.n), backgroundColor: token('--signal', '#0e7c8c') }],
+      datasets: [{ label: 'Frecuencia', data: props.bins.map((b) => b.n), backgroundColor: token('--signal', '#1a4fbf') }],
     },
     options: {
       responsive: true,
