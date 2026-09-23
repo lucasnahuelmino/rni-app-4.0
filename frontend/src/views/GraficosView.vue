@@ -1,6 +1,6 @@
 <script setup>
 import { ref, watch } from 'vue'
-import { chartsApi, localitiesApi } from '../services/domains'
+import { chartsApi, kpisApi, localitiesApi, tiemposApi } from '../services/domains'
 import { useFetchOnFiltros } from '../composables/useFetchOnFiltros'
 import { useFiltrosStore } from '../stores/filtros'
 import LoadingState from '../components/LoadingState.vue'
@@ -28,6 +28,21 @@ const { data: ranking, loading: loadingRanking, reload: reloadRanking } = useFet
   { watchFiltros: false },
 )
 watch(metricaRanking, reloadRanking)
+
+// Horas trabajadas y días con medición por CCTE -- ya vienen precalculados
+// en resumen_ccte (services/statistics.py los mantiene actualizados en cada
+// import), así que esto solo los muestra, no recalcula nada en el navegador.
+const { data: ccteSummary, loading: loadingCcte } = useFetchOnFiltros(
+  async () => (await kpisApi.getCcteSummary()).data,
+  { watchFiltros: false },
+)
+
+// Tiempo trabajado mensual (nuevo -- antes no existía este desglose en
+// ningún lado, ni siquiera en el sistema Streamlit anterior a nivel
+// agregado nacional). Respeta los filtros globales.
+const { data: tiempoMensual, loading: loadingTiempoMensual, error: errorTiempoMensual, reload: reloadTiempoMensual } = useFetchOnFiltros(
+  async (f) => (await tiemposApi.getMensual({ filtros: f })).data,
+)
 </script>
 
 <template>
@@ -47,10 +62,48 @@ watch(metricaRanking, reloadRanking)
     </section>
 
     <section class="panel">
-      <h2>Tendencia mensual</h2>
+      <h2>Tendencia mensual (mediciones)</h2>
       <LoadingState v-if="loadingTendencia" />
       <EmptyState v-else-if="!tendencia?.length" />
       <MonthlyTrendChart v-else :datos="tendencia" />
+    </section>
+
+    <section class="panel">
+      <h2>Tiempo trabajado mensual</h2>
+      <ErrorState v-if="errorTiempoMensual" @reintentar="reloadTiempoMensual" />
+      <LoadingState v-else-if="loadingTiempoMensual" />
+      <EmptyState v-else-if="!tiempoMensual?.length" />
+      <table v-else>
+        <thead>
+          <tr><th>Mes</th><th>Tiempo trabajado</th><th>Días con medición</th></tr>
+        </thead>
+        <tbody>
+          <tr v-for="m in tiempoMensual" :key="m.mes">
+            <td>{{ m.mes }}</td>
+            <td class="num">{{ m.tiempo_trabajado_fmt }}</td>
+            <td class="num">{{ m.dias_con_medicion }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="panel">
+      <h2>Horas trabajadas y días con medición por CCTE</h2>
+      <LoadingState v-if="loadingCcte" />
+      <EmptyState v-else-if="!ccteSummary?.length" />
+      <table v-else>
+        <thead>
+          <tr><th>CCTE</th><th>Localidades</th><th>Tiempo trabajado</th><th>Días con medición</th></tr>
+        </thead>
+        <tbody>
+          <tr v-for="c in ccteSummary" :key="c.ccte">
+            <td>{{ c.ccte }}</td>
+            <td class="num">{{ c.localidades }}</td>
+            <td class="num">{{ c.tiempo_trabajado_fmt }}</td>
+            <td class="num">{{ c.dias_con_medicion }}</td>
+          </tr>
+        </tbody>
+      </table>
     </section>
 
     <section class="panel">

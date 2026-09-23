@@ -2,102 +2,74 @@
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-
 import { mapApi } from '../services/domains'
 import { useFiltrosStore } from '../stores/filtros'
+import { useColorScaleStore } from '../stores/colorScale'
 import LoadingState from '../components/LoadingState.vue'
 import ErrorState from '../components/ErrorState.vue'
 
-import {
-  RNI_COLOR_SCALE,
-  getColorPorPct,
-} from '../constants'
-
 const filtros = useFiltrosStore()
+const escala = useColorScaleStore()
 
 const aplicarFiltros = ref(false)
-const modoMapa = ref('all')
-
+const modo = ref('todos') // 'todos' | 'max_localidad'
+const localidadBusqueda = ref('')
 const loading = ref(false)
 const error = ref(null)
-
 const truncado = ref(false)
 const totalDisponible = ref(0)
 
 const mapContainer = ref(null)
-
 let mapa = null
 let capaMarcadores = null
 
 async function cargarPuntos() {
   loading.value = true
   error.value = null
-
   try {
-    const filtrosAEnviar = aplicarFiltros.value
-      ? filtros
-      : {
-          ccte: [],
-          provincia: [],
-          anio: [],
-        }
-
-    const { data } = await mapApi.getMap(
-      filtrosAEnviar,
-      {
-        modo: modoMapa.value,
-      },
-    )
-
+    const base = aplicarFiltros.value ? filtros : { ccte: [], provincia: [], anio: [] }
+    const filtrosAEnviar = {
+      ccte: base.ccte,
+      provincia: base.provincia,
+      anio: base.anio,
+      localidad: localidadBusqueda.value.trim() ? [localidadBusqueda.value.trim()] : [],
+    }
+    const { data } = await mapApi.getMap(filtrosAEnviar, { modo: modo.value })
     truncado.value = data.truncado
     totalDisponible.value = data.total_disponible
 
     capaMarcadores.clearLayers()
-
     data.puntos.forEach((p) => {
-      L.circleMarker(
-        [p.lat, p.lon],
-        {
-          radius: 5,
-          color: getColorPorPct(p.resultado_pct),
-          fillColor: getColorPorPct(p.resultado_pct),
-          fillOpacity: 0.8,
-          weight: 1,
-        },
-      )
+      const color = escala.colorPorPct(p.resultado_pct)
+      L.circleMarker([p.lat, p.lon], {
+        radius: 5,
+        color,
+        fillColor: color,
+        fillOpacity: 0.85,
+        weight: 1,
+      })
         .bindPopup(
-          `<strong>${p.localidad}</strong> (${p.ccte})<br/>
-          ${p.resultado_vm?.toFixed(2) ?? '—'} V/m
-          ${
-            p.resultado_pct != null
-              ? ` · ${p.resultado_pct.toFixed(1)}%`
-              : ''
-          }`,
+          `<strong>${p.localidad}</strong> (${p.ccte})<br/>${p.resultado_vm?.toFixed(2) ?? '—'} V/m` +
+            (p.resultado_pct != null
+              ? ` · ${p.resultado_pct.toFixed(1)}% · ${escala.etiquetaPorPct(p.resultado_pct)}`
+              : ''),
         )
         .addTo(capaMarcadores)
     })
-  }
-  catch (e) {
+  } catch (e) {
     error.value = e
-  }
-  finally {
+  } finally {
     loading.value = false
   }
 }
 
-onMounted(() => {
-  mapa = L.map(mapContainer.value)
-    .setView([-38.4, -63.6], 4)
-
-  L.tileLayer(
-    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    {
-      attribution: '&copy; OpenStreetMap contributors',
-    },
-  ).addTo(mapa)
-
+onMounted(async () => {
+  await escala.asegurarCargado()
+  mapa = L.map(mapContainer.value).setView([-38.4, -63.6], 4) // centro aproximado de Argentina
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors',
+  }).addTo(mapa)
   capaMarcadores = L.layerGroup().addTo(mapa)
-
   cargarPuntos()
 })
 
@@ -105,107 +77,81 @@ onBeforeUnmount(() => {
   mapa?.remove()
 })
 
-watch(aplicarFiltros, cargarPuntos)
-
-watch(modoMapa, cargarPuntos)
-
+watch([aplicarFiltros, modo], cargarPuntos)
 watch(
-  () => [
-    filtros.ccte.slice(),
-    filtros.provincia.slice(),
-    filtros.anio.slice(),
-  ],
+  () => [filtros.ccte.slice(), filtros.provincia.slice(), filtros.anio.slice()],
   () => {
-    if (aplicarFiltros.value) {
-      cargarPuntos()
-    }
+    if (aplicarFiltros.value) cargarPuntos()
   },
   { deep: true },
 )
+
+let debounceId = null
+function onLocalidadInput() {
+  clearTimeout(debounceId)
+  debounceId = setTimeout(cargarPuntos, 400)
+}
 </script>
 
 <template>
   <div class="mapa-vista">
     <div class="mapa-controles panel">
+      <div class="mapa-modos" role="radiogroup" aria-label="Qué puntos mostrar">
+        <button
+          class="chip"
+          :class="{ 'chip--active': modo === 'todos' }"
+          @click="modo = 'todos'"
+          aria-pressed="true"
+        >
+          🌎 Todos los puntos
+        </button>
+        <button
+          class="chip"
+          :class="{ 'chip--active': modo === 'max_localidad' }"
+          @click="modo = 'max_localidad'"
+        >
+          📍 Máximo por localidad
+        </button>
+      </div>
 
       <label class="mapa-toggle">
+        <input type="checkbox" v-model="aplicarFiltros" />
+        Aplicar filtros al mapa (CCTE / Provincia / Año)
+      </label>
+
+      <label class="mapa-localidad">
+        Buscar localidad
         <input
-          v-model="aplicarFiltros"
-          type="checkbox"
+          v-model="localidadBusqueda"
+          type="text"
+          placeholder="Nombre exacto de la localidad…"
+          @input="onLocalidadInput"
         />
-        Aplicar los filtros globales al mapa
       </label>
 
-      <label class="mapa-selector">
-        Modo de visualización
-
-        <select v-model="modoMapa">
-          <option value="all">
-            🌎 Todos los puntos
-          </option>
-
-          <option value="max_localidad">
-            📍 Máximo por localidad
-          </option>
-
-          <option value="relevantes">
-            🎯 Puntos relevantes
-          </option>
-        </select>
-      </label>
-
-      <p
-        v-if="!aplicarFiltros"
-        class="mapa-nota"
-      >
-        El mapa está mostrando
-        <strong>todos los puntos</strong>
-        sin aplicar filtros globales.
+      <p v-if="!aplicarFiltros" class="mapa-nota">
+        Mostrando el mapa <strong>nacional completo</strong>, sin los filtros globales de CCTE/Provincia/Año
+        (el mapa no hereda esos filtros a menos que actives la casilla de arriba).
+      </p>
+      <p v-if="modo === 'max_localidad'" class="mapa-nota">
+        Un punto por localidad: el de mayor % del límite registrado en cada una.
+      </p>
+      <p v-if="truncado" class="mapa-nota mapa-nota--aviso">
+        Mostrando una <strong>muestra</strong> de {{ totalDisponible }} puntos disponibles. Cambiá a "Máximo por
+        localidad" o agregá filtros para ver el detalle completo.
       </p>
 
-      <p
-        v-if="truncado"
-        class="mapa-nota mapa-nota--aviso"
-      >
-        Mostrando una muestra de los puntos disponibles
-        ({{ totalDisponible }} registros).
-      </p>
-
-      <div
-        class="mapa-leyenda"
-        aria-label="Escala histórica RNI"
-      >
-        <span
-          v-for="item in RNI_COLOR_SCALE"
-          :key="item.label"
-          class="mapa-leyenda__item"
-        >
-          <span
-            class="mapa-leyenda__dot"
-            :style="{ backgroundColor: item.color }"
-          />
-
-          {{ item.label }}
+      <div class="mapa-leyenda" aria-label="Referencia de niveles (% del límite normativo)">
+        <span v-for="r in escala.rangos" :key="r.etiqueta" class="mapa-leyenda__item">
+          <span class="mapa-leyenda__dot" :style="{ background: r.color }"></span>{{ r.etiqueta }}
         </span>
+        <span class="mapa-leyenda__item"><span class="mapa-leyenda__dot" style="background:#9aa5ab"></span>Sin dato</span>
       </div>
     </div>
 
-    <ErrorState
-      v-if="error"
-      @reintentar="cargarPuntos"
-    />
-
-    <LoadingState
-      v-else-if="loading"
-      mensaje="Cargando puntos del mapa…"
-    />
-
-    <div
-      ref="mapContainer"
-      class="mapa-canvas"
-      role="application"
-      aria-label="Mapa de mediciones RNI"
-    />
+    <ErrorState v-if="error" @reintentar="cargarPuntos" />
+    <LoadingState v-else-if="loading" mensaje="Cargando puntos del mapa…" />
+    <div ref="mapContainer" class="mapa-canvas" role="application" aria-label="Mapa de mediciones RNI"></div>
   </div>
 </template>
 
@@ -219,7 +165,12 @@ watch(
 .mapa-controles {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.6rem;
+}
+
+.mapa-modos {
+  display: flex;
+  gap: 0.5rem;
 }
 
 .mapa-toggle {
@@ -229,18 +180,23 @@ watch(
   font-weight: 500;
 }
 
-.mapa-selector {
+.mapa-localidad {
   display: flex;
-  gap: 0.75rem;
-  align-items: center;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+  max-width: 280px;
 }
 
-.mapa-selector select {
-  min-width: 220px;
+.mapa-localidad input {
+  border: 1px solid var(--line);
+  padding: 0.35rem 0.5rem;
+  color: var(--ink);
 }
 
 .mapa-nota {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   color: var(--ink-soft);
   margin: 0;
 }
@@ -251,24 +207,24 @@ watch(
 
 .mapa-leyenda {
   display: flex;
+  gap: 0.85rem;
   flex-wrap: wrap;
-  gap: 0.75rem;
-  margin-top: 0.5rem;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
 }
 
 .mapa-leyenda__item {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.3rem;
+  white-space: nowrap;
 }
 
 .mapa-leyenda__dot {
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   display: inline-block;
-  border: 1px solid rgba(0,0,0,.25);
 }
 
 .mapa-canvas {

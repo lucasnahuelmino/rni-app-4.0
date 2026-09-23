@@ -97,11 +97,14 @@ def actualizar_metadata_localidad(conn: sqlite3.Connection, ccte: str, provincia
 
 def query_filtrada(conn: sqlite3.Connection, ccte: Iterable[str] | None = None,
                     provincia: Iterable[str] | None = None, anio: Iterable[int] | None = None,
-                    limit: int | None = None) -> list[dict]:
+                    localidad: Iterable[str] | None = None, limit: int | None = None,
+                    columnas: str = "*") -> list[dict]:
     """SELECT genérico con filtros opcionales -- usado por endpoints que
-    necesitan filas individuales (mapa, histograma)."""
-    where, params = construir_where(ccte, provincia, anio)
-    sql = f"SELECT * FROM mediciones {where}"
+    necesitan filas individuales (mapa, histograma, tiempos trabajados).
+    `columnas` permite pedir solo las columnas necesarias (ej. tiempos
+    trabajados no necesita traer lat/lon/resultado)."""
+    where, params = construir_where(ccte, provincia, anio, localidad)
+    sql = f"SELECT {columnas} FROM mediciones {where}"
     if limit:
         sql += " LIMIT ?"
         params = params + [limit]
@@ -109,7 +112,7 @@ def query_filtrada(conn: sqlite3.Connection, ccte: Iterable[str] | None = None,
     return [dict(r) for r in cur.fetchall()]
 
 
-def construir_where(ccte, provincia, anio) -> tuple[str, list[Any]]:
+def construir_where(ccte, provincia, anio, localidad=None) -> tuple[str, list[Any]]:
     condiciones = []
     params: list[Any] = []
     if ccte:
@@ -124,5 +127,9 @@ def construir_where(ccte, provincia, anio) -> tuple[str, list[Any]]:
         anio = list(anio)
         condiciones.append(f"anio IN ({','.join('?' for _ in anio)})")
         params += anio
+    if localidad:
+        localidad = list(localidad)
+        condiciones.append(f"localidad IN ({','.join('?' for _ in localidad)})")
+        params += localidad
     where = ("WHERE " + " AND ".join(condiciones)) if condiciones else ""
     return where, params

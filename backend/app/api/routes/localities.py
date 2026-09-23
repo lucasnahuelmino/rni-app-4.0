@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from app.calculations.dates import format_timedelta_long
 from app.core.deps import get_db
 from app.db.repositories import resumen_repo
 from app.schemas.filters import FiltrosQuery, filtros_query
@@ -18,9 +19,23 @@ class EditarLocalidadRequest(BaseModel):
     expediente: str | None = None
 
 
+def _con_tiempo_formateado(row: dict) -> dict:
+    row = dict(row)
+    row["tiempo_trabajado_fmt"] = format_timedelta_long(row.get("tiempo_trabajado_seg"))
+    # `expedientes`/`sondas` se guardan como string separado por comas
+    # (ya deduplicado en services/statistics.py) -- acá se exponen también
+    # como lista, para que el frontend no tenga que hacer el split.
+    row["expedientes_lista"] = [e for e in (row.get("expedientes") or "").split(",") if e]
+    row["sondas_lista"] = [s for s in (row.get("sondas") or "").split(",") if s]
+    return row
+
+
 @router.get("/localities")
 def get_localities(filtros: FiltrosQuery = Depends(filtros_query), conn=Depends(get_db)):
-    return resumen_repo.listar_resumen_localidad(conn, ccte=filtros.ccte, provincia=filtros.provincia)
+    filas = resumen_repo.listar_resumen_localidad(
+        conn, ccte=filtros.ccte, provincia=filtros.provincia, localidad=filtros.localidad
+    )
+    return [_con_tiempo_formateado(f) for f in filas]
 
 
 @router.get("/localities/{localidad}")
@@ -31,7 +46,7 @@ def get_locality_detail(localidad: str, ccte: str, provincia: str, conn=Depends(
     ).fetchone()
     if not filas:
         raise HTTPException(status_code=404, detail="Localidad no encontrada")
-    return dict(filas)
+    return _con_tiempo_formateado(dict(filas))
 
 
 @router.put("/localities/{localidad}")

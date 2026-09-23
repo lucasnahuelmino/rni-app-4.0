@@ -1,10 +1,21 @@
 import api from './api'
 
-function filtrosParams(filtros) {
+// IMPORTANTE: se arma un URLSearchParams y se pasa TAL CUAL a axios (que lo
+// soporta nativamente) en vez de convertirlo con Object.fromEntries(). Un
+// objeto plano no puede tener dos entradas con la misma key, así que
+// Object.fromEntries() sobre params repetidos (ccte=A&ccte=B) se quedaba
+// solo con el último valor -- un filtro multi-select silenciosamente
+// perdía todos los valores salvo el último. Bug encontrado al revisar este
+// archivo para el pedido de filtros del mapa/tiempos (punto 11 y 2).
+function filtrosParams(filtros, extra = {}) {
   const params = new URLSearchParams()
-  ;(filtros.ccte || []).forEach((v) => params.append('ccte', v))
-  ;(filtros.provincia || []).forEach((v) => params.append('provincia', v))
-  ;(filtros.anio || []).forEach((v) => params.append('anio', v))
+  ;(filtros?.ccte || []).forEach((v) => params.append('ccte', v))
+  ;(filtros?.provincia || []).forEach((v) => params.append('provincia', v))
+  ;(filtros?.anio || []).forEach((v) => params.append('anio', v))
+  ;(filtros?.localidad || []).forEach((v) => params.append('localidad', v))
+  Object.entries(extra).forEach(([k, v]) => {
+    if (v !== undefined && v !== null && v !== '') params.append(k, v)
+  })
   return params
 }
 
@@ -27,27 +38,23 @@ export const localitiesApi = {
 
 export const chartsApi = {
   getHistogram: (campo = 'resultado_pct', bins = 20, filtros = {}) =>
-    api.get('/histogram', { params: { campo, bins, ...Object.fromEntries(filtrosParams(filtros)) } }),
+    api.get('/histogram', { params: filtrosParams(filtros, { campo, bins }) }),
   getMonthlyTrend: () => api.get('/monthly-trend'),
 }
 
 export const mapApi = {
-  getMap: (
-    filtros,
-    {
-      bbox,
-      pctMin,
-      modo,
-    } = {},
-  ) =>
-    api.get('/map', {
-      params: {
-        bbox,
-        pct_min: pctMin,
-        modo,
-        ...Object.fromEntries(filtrosParams(filtros)),
-      },
-    }),
+  getMap: (filtros, { bbox, pctMin, modo = 'todos' } = {}) =>
+    api.get('/map', { params: filtrosParams(filtros, { bbox, pct_min: pctMin, modo }) }),
+}
+
+export const tiemposApi = {
+  getDiario: (ccte, provincia, localidad) => api.get('/tiempos/diario', { params: { ccte, provincia, localidad } }),
+  getMensual: ({ ccte, provincia, localidad, filtros } = {}) =>
+    api.get('/tiempos/mensual', { params: filtrosParams(filtros, { ccte, provincia, localidad }) }),
+}
+
+export const colorsApi = {
+  getColorScale: () => api.get('/color-scale'),
 }
 
 export const diagnosticsApi = {

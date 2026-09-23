@@ -70,8 +70,7 @@ def migrar(origen: Path, destino: Path) -> None:
             "fecha_raw": fila.get("Fecha"), "hora_raw": fila.get("Hora"),
             "fecha_hora": fecha_hora_iso,
             "anio": None if pd.isna(fila.get("anio")) else int(fila["anio"]),
-            "lat": -abs(float(fila["Lat"])) if pd.notna(fila.get("Lat")) else None,
-            "lon": -abs(float(fila["Lon"])) if pd.notna(fila.get("Lon")) else None,
+            "lat": fila.get("Lat"), "lon": fila.get("Lon"),
             "lat_raw": None, "lon_raw": None,  # el esquema viejo no guardaba el crudo
             "expediente": fila.get("Expediente"), "sonda": fila.get("Sonda"),
             "nombre_archivo": fila.get("nombre_archivo"),

@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed } from 'vue'
-import { localitiesApi, reportsApi } from '../services/domains'
+import { localitiesApi, reportsApi, tiemposApi } from '../services/domains'
 import { useFetchOnFiltros } from '../composables/useFetchOnFiltros'
 import LoadingState from '../components/LoadingState.vue'
 import ErrorState from '../components/ErrorState.vue'
@@ -19,6 +19,12 @@ const errorGuardado = ref(null)
 const confirmarBorrado = ref(false)
 const borrando = ref(false)
 
+const tabTiempo = ref('diario') // 'diario' | 'mensual'
+const tiempoDiario = ref(null)
+const tiempoMensual = ref(null)
+const loadingTiempo = ref(false)
+const errorTiempo = ref(null)
+
 function seleccionar(row) {
   seleccionada.value = row
   editando.value = false
@@ -28,6 +34,26 @@ function seleccionar(row) {
     provincia: row.provincia,
     localidad: row.localidad,
     expediente: row.expedientes || '',
+  }
+  cargarTiempos()
+}
+
+async function cargarTiempos() {
+  if (!seleccionada.value) return
+  loadingTiempo.value = true
+  errorTiempo.value = null
+  try {
+    const { ccte, provincia, localidad } = seleccionada.value
+    const [diario, mensual] = await Promise.all([
+      tiemposApi.getDiario(ccte, provincia, localidad),
+      tiemposApi.getMensual({ ccte, provincia, localidad }),
+    ])
+    tiempoDiario.value = diario.data
+    tiempoMensual.value = mensual.data
+  } catch (e) {
+    errorTiempo.value = e
+  } finally {
+    loadingTiempo.value = false
   }
 }
 
@@ -107,6 +133,16 @@ const urlPdf = computed(() => {
           <div>
             <h2>{{ seleccionada.localidad }}</h2>
             <p class="gestion__subtitulo">{{ seleccionada.provincia }} · CCTE {{ seleccionada.ccte }}</p>
+            <p class="gestion__meta-lista">
+              <strong>Expediente(s):</strong>
+              <span v-if="seleccionada.expedientes_lista?.length">{{ seleccionada.expedientes_lista.join(', ') }}</span>
+              <span v-else class="gestion__sin-dato">Sin expediente registrado</span>
+            </p>
+            <p class="gestion__meta-lista">
+              <strong>Sonda(s):</strong>
+              <span v-if="seleccionada.sondas_lista?.length">{{ seleccionada.sondas_lista.join(', ') }}</span>
+              <span v-else class="gestion__sin-dato">—</span>
+            </p>
           </div>
           <div class="gestion__acciones">
             <a class="btn btn--ghost" :href="urlWord">Exportar Word</a>
@@ -118,9 +154,67 @@ const urlPdf = computed(() => {
           <div><dt>Mediciones</dt><dd class="num">{{ seleccionada.mediciones }}</dd></div>
           <div><dt>Máx. V/m</dt><dd class="num">{{ seleccionada.resultado_max_vm?.toFixed(2) ?? '—' }}</dd></div>
           <div><dt>Nivel</dt><dd><SemaforoBadge :pct="seleccionada.resultado_max_pct" /></dd></div>
-          <div><dt>Desde</dt><dd>{{ seleccionada.fecha_inicio?.slice(0, 10) ?? '—' }}</dd></div>
-          <div><dt>Hasta</dt><dd>{{ seleccionada.fecha_fin?.slice(0, 10) ?? '—' }}</dd></div>
+          <div><dt>Fecha inicial</dt><dd>{{ seleccionada.fecha_inicio?.slice(0, 10) ?? '—' }}</dd></div>
+          <div><dt>Fecha final</dt><dd>{{ seleccionada.fecha_fin?.slice(0, 10) ?? '—' }}</dd></div>
+          <div><dt>Tiempo trabajado</dt><dd class="num">{{ seleccionada.tiempo_trabajado_fmt ?? '0 s' }}</dd></div>
+          <div><dt>Días con medición</dt><dd class="num">{{ seleccionada.dias_con_medicion ?? 0 }}</dd></div>
         </dl>
+
+        <div class="gestion__tiempos">
+          <div class="gestion__tabs" role="tablist" aria-label="Desglose de tiempo trabajado">
+            <button
+              class="chip"
+              :class="{ 'chip--active': tabTiempo === 'diario' }"
+              role="tab"
+              :aria-selected="tabTiempo === 'diario'"
+              @click="tabTiempo = 'diario'"
+            >
+              Diario
+            </button>
+            <button
+              class="chip"
+              :class="{ 'chip--active': tabTiempo === 'mensual' }"
+              role="tab"
+              :aria-selected="tabTiempo === 'mensual'"
+              @click="tabTiempo = 'mensual'"
+            >
+              Mensual
+            </button>
+          </div>
+
+          <ErrorState v-if="errorTiempo" @reintentar="cargarTiempos" />
+          <LoadingState v-else-if="loadingTiempo" mensaje="Calculando tiempo trabajado…" />
+          <template v-else>
+            <EmptyState v-if="tabTiempo === 'diario' && !tiempoDiario?.length" mensaje="Sin jornadas registradas." />
+            <table v-else-if="tabTiempo === 'diario'">
+              <thead>
+                <tr><th>Fecha</th><th>Inicio</th><th>Fin</th><th>Duración</th></tr>
+              </thead>
+              <tbody>
+                <tr v-for="d in tiempoDiario" :key="`${d.fecha}-${d.nombre_archivo}`">
+                  <td>{{ d.fecha }}</td>
+                  <td class="num">{{ d.inicio }}</td>
+                  <td class="num">{{ d.fin }}</td>
+                  <td class="num">{{ d.duracion_fmt }}</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <EmptyState v-if="tabTiempo === 'mensual' && !tiempoMensual?.length" mensaje="Sin datos mensuales." />
+            <table v-else-if="tabTiempo === 'mensual'">
+              <thead>
+                <tr><th>Mes</th><th>Tiempo trabajado</th><th>Días con medición</th></tr>
+              </thead>
+              <tbody>
+                <tr v-for="m in tiempoMensual" :key="m.mes">
+                  <td>{{ m.mes }}</td>
+                  <td class="num">{{ m.tiempo_trabajado_fmt }}</td>
+                  <td class="num">{{ m.dias_con_medicion }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </template>
+        </div>
 
         <div class="gestion__editor">
           <button v-if="!editando" class="btn btn--ghost" @click="editando = true">Editar metadata</button>
@@ -223,6 +317,15 @@ const urlPdf = computed(() => {
   margin: 0.2rem 0 0;
 }
 
+.gestion__meta-lista {
+  font-size: 0.8rem;
+  margin: 0.15rem 0 0;
+}
+
+.gestion__sin-dato {
+  color: var(--ink-soft);
+}
+
 .gestion__acciones {
   display: flex;
   gap: 0.5rem;
@@ -230,7 +333,7 @@ const urlPdf = computed(() => {
 
 .gestion__stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   gap: 0.75rem;
   margin: 0 0 1.25rem;
 }
@@ -242,6 +345,17 @@ const urlPdf = computed(() => {
 
 .gestion__stats dd {
   margin: 0;
+}
+
+.gestion__tiempos {
+  border-top: 1px solid var(--line);
+  padding-top: 1rem;
+}
+
+.gestion__tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
 }
 
 .gestion__editor,

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import sqlite3
 
+from app.calculations.dates import format_timedelta_long
 from app.core.config import CCTE_FIJOS, CCTE_SIEMPRE_VISIBLES
 from app.db.repositories.mediciones_repo import construir_where
 from app.schemas.filters import FiltrosQuery
@@ -67,4 +68,7 @@ def obtener_ccte_summary(conn: sqlite3.Connection, orden: str = "mediciones") ->
     fijos = [r for r in resultado if r["ccte"] in CCTE_SIEMPRE_VISIBLES]
     resto = [r for r in resultado if r["ccte"] not in CCTE_SIEMPRE_VISIBLES]
     resto.sort(key=lambda r: r.get(orden) or 0, reverse=True)
-    return resto + fijos
+    ordenado = resto + fijos
+    for r in ordenado:
+        r["tiempo_trabajado_fmt"] = format_timedelta_long(r.get("tiempo_trabajado_seg"))
+    return ordenado

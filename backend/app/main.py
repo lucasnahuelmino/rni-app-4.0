@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import charts, diagnostics, imports, kpis, localities, map as map_routes, reports
+from app.api.routes import charts, colors, diagnostics, imports, kpis, localities, map as map_routes, reports, tiempos
 from app.db.database import init_schema
 
 app = FastAPI(title="RNI API", version="1.0.0")
@@ -28,6 +28,8 @@ app.include_router(map_routes.router, prefix="/api", tags=["map"])
 app.include_router(diagnostics.router, prefix="/api", tags=["diagnostics"])
 app.include_router(imports.router, prefix="/api", tags=["imports"])
 app.include_router(reports.router, prefix="/api", tags=["reports"])
+app.include_router(tiempos.router, prefix="/api", tags=["tiempos"])
+app.include_router(colors.router, prefix="/api", tags=["colors"])
 
 
 @app.get("/api/health")

@@ -1,32 +1,41 @@
 <script setup>
-import { computed } from 'vue'
-import { getColorPorPct, getRangoPorPct } from '../constants'
+import { computed, onMounted } from 'vue'
+import { useColorScaleStore } from '../stores/colorScale'
 
 const props = defineProps({
   pct: { type: Number, default: null },
 })
 
-const nivel = computed(() => {
-  if (props.pct == null) return null
+const escala = useColorScaleStore()
+onMounted(() => escala.asegurarCargado())
 
-  const rango = getRangoPorPct(props.pct)
-
-  return {
-    texto: rango.label,
-    color: rango.color,
-  }
-})
+const color = computed(() => escala.colorPorPct(props.pct))
+const etiqueta = computed(() => escala.etiquetaPorPct(props.pct))
 </script>
 
 <template>
-  <span
-    v-if="nivel"
-    class="badge"
-    :style="{ backgroundColor: nivel.color }"
-  >
-    <span class="badge__dot" aria-hidden="true"></span>
-    {{ nivel.texto }}
-    <span class="num">({{ pct.toFixed(2) }}%)</span>
+  <span class="badge-color" :style="{ '--badge-color': color }">
+    <span class="badge-color__dot" aria-hidden="true"></span>
+    <span v-if="pct != null" class="num">{{ etiqueta }}</span>
+    <span v-else>Sin dato</span>
   </span>
-  <span v-else class="badge">Sin dato</span>
 </template>
+
+<style scoped>
+.badge-color {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  border: 1px solid var(--badge-color, var(--line));
+  padding: 0.15rem 0.5rem;
+}
+
+.badge-color__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--badge-color, var(--ink-soft));
+  flex-shrink: 0;
+}
+</style>

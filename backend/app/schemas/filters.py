@@ -9,11 +9,13 @@ class FiltrosQuery(BaseModel):
     ccte: list[str] | None = None
     provincia: list[str] | None = None
     anio: list[int] | None = None
+    localidad: list[str] | None = None
 
 
 def filtros_query(
     ccte: list[str] | None = Query(default=None),
     provincia: list[str] | None = Query(default=None),
     anio: list[int] | None = Query(default=None),
+    localidad: list[str] | None = Query(default=None),
 ) -> FiltrosQuery:
-    return FiltrosQuery(ccte=ccte, provincia=provincia, anio=anio)
+    return FiltrosQuery(ccte=ccte, provincia=provincia, anio=anio, localidad=localidad)

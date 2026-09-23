@@ -87,19 +87,19 @@ def format_timedelta_long(td) -> str:
     return f"{seconds} s"
 
 
-def calcular_tiempo_trabajado_segundos(df: pd.DataFrame) -> int:
-    """Suma (fin - inicio) por archivo+día, usando fecha_hora ya calculada.
-
-    Espera que `df` ya tenga la columna `fecha_hora` (agregada con
-    `add_fecha_hora`). Si `nombre_archivo` está presente, agrupa por
-    (nombre_archivo, día); si no, agrupa solo por día.
-    """
+def _agrupar_por_archivo_dia(df: pd.DataFrame) -> pd.DataFrame:
+    """Agrupa por (nombre_archivo, día) -- o solo por día si no hay
+    nombre_archivo -- y devuelve inicio/fin de cada grupo. Es el mismo
+    agrupamiento que ya usaba `calcular_tiempo_trabajado_segundos`;
+    se extrae acá para poder reutilizarlo también en el desglose diario
+    y mensual (Fase 6, punto 8: una única lógica de negocio, no una
+    fórmula distinta por pantalla)."""
     if df is None or df.empty or "fecha_hora" not in df.columns:
-        return 0
+        return pd.DataFrame(columns=["nombre_archivo", "_dia", "min", "max"])
 
     out = df.dropna(subset=["fecha_hora"]).copy()
     if out.empty:
-        return 0
+        return pd.DataFrame(columns=["nombre_archivo", "_dia", "min", "max"])
 
     out["_dia"] = pd.to_datetime(out["fecha_hora"]).dt.date
     group_cols = ["_dia"]
@@ -109,7 +109,77 @@ def calcular_tiempo_trabajado_segundos(df: pd.DataFrame) -> int:
     agg = out.groupby(group_cols)["fecha_hora"].agg(["min", "max"]).reset_index()
     agg["min"] = pd.to_datetime(agg["min"])
     agg["max"] = pd.to_datetime(agg["max"])
+    if "nombre_archivo" not in agg.columns:
+        agg["nombre_archivo"] = None
+    return agg
+
+
+def calcular_tiempo_trabajado_segundos(df: pd.DataFrame) -> int:
+    """Suma (fin - inicio) por archivo+día, usando fecha_hora ya calculada.
+
+    Espera que `df` ya tenga la columna `fecha_hora` (agregada con
+    `add_fecha_hora`). Si `nombre_archivo` está presente, agrupa por
+    (nombre_archivo, día); si no, agrupa solo por día.
+    """
+    agg = _agrupar_por_archivo_dia(df)
+    if agg.empty:
+        return 0
     dur = (agg["max"] - agg["min"]).dropna()
     if dur.empty:
         return 0
     return int(dur.sum().total_seconds())
+
+
+def desglose_diario(df: pd.DataFrame) -> list[dict]:
+    """Detalle día por día: fecha, hora de inicio, hora de fin, duración.
+
+    Si un mismo día tiene más de un archivo, se listan como filas separadas
+    (igual que agrupaba la aplicación Streamlit original) -- no se suman
+    entre sí para no ocultar que fueron jornadas/archivos distintos.
+    """
+    agg = _agrupar_por_archivo_dia(df)
+    if agg.empty:
+        return []
+
+    agg = agg.sort_values("_dia")
+    resultado = []
+    for _, row in agg.iterrows():
+        duracion_seg = int((row["max"] - row["min"]).total_seconds())
+        resultado.append({
+            "fecha": str(row["_dia"]),
+            "nombre_archivo": row["nombre_archivo"],
+            "inicio": row["min"].strftime("%H:%M:%S"),
+            "fin": row["max"].strftime("%H:%M:%S"),
+            "duracion_seg": duracion_seg,
+            "duracion_fmt": format_timedelta_long(duracion_seg),
+        })
+    return resultado
+
+
+def desglose_mensual(desglose_diario_list: list[dict]) -> list[dict]:
+    """Agrupa el desglose diario (`desglose_diario()`) por mes: tiempo
+    trabajado total y cantidad de días distintos con medición.
+
+    Se calcula a partir del desglose diario ya sumado por jornada, NO
+    tomando min/max directo del mes completo -- eso mezclaría jornadas de
+    días distintos en un solo intervalo y sobrestimaría groseramente el
+    tiempo trabajado (ver nota en Fase 6)."""
+    if not desglose_diario_list:
+        return []
+
+    df = pd.DataFrame(desglose_diario_list)
+    df["mes"] = df["fecha"].str.slice(0, 7)
+    agrupado = df.groupby("mes").agg(
+        tiempo_trabajado_seg=("duracion_seg", "sum"),
+        dias_con_medicion=("fecha", "nunique"),
+    ).reset_index().sort_values("mes")
+
+    return [
+        {
+            "mes": row["mes"],
+            "tiempo_trabajado_seg": int(row["tiempo_trabajado_seg"]),
+            "tiempo_trabajado_fmt": format_timedelta_long(int(row["tiempo_trabajado_seg"])),
+            "dias_con_medicion": int(row["dias_con_medicion"]),
+        }
+        for _, row in agrupado.iterrows()
+    ]

@@ -179,7 +179,7 @@ def recalcular_resumen_mensual(conn: sqlite3.Connection, mes: str, ahora: str) -
     )
 
 
-def listar_resumen_localidad(conn: sqlite3.Connection, ccte=None, provincia=None) -> list[dict]:
+def listar_resumen_localidad(conn: sqlite3.Connection, ccte=None, provincia=None, localidad=None) -> list[dict]:
     condiciones, params = [], []
     if ccte:
         condiciones.append(f"ccte IN ({','.join('?' for _ in ccte)})")
@@ -187,6 +187,9 @@ def listar_resumen_localidad(conn: sqlite3.Connection, ccte=None, provincia=None
     if provincia:
         condiciones.append(f"provincia IN ({','.join('?' for _ in provincia)})")
         params += list(provincia)
+    if localidad:
+        condiciones.append(f"localidad IN ({','.join('?' for _ in localidad)})")
+        params += list(localidad)
     where = ("WHERE " + " AND ".join(condiciones)) if condiciones else ""
     cur = conn.execute(f"SELECT * FROM resumen_localidad {where}", params)
     return [dict(r) for r in cur.fetchall()]

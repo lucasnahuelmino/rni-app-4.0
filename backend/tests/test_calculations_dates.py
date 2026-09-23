@@ -4,6 +4,8 @@ from app.calculations.dates import (
     add_fecha_hora,
     anio_de_fecha_hora,
     calcular_tiempo_trabajado_segundos,
+    desglose_diario,
+    desglose_mensual,
     format_timedelta_long,
 )
 
@@ -74,3 +76,60 @@ def test_calcular_tiempo_trabajado_segundos():
 
 def test_calcular_tiempo_trabajado_vacio():
     assert calcular_tiempo_trabajado_segundos(pd.DataFrame()) == 0
+
+
+def test_desglose_diario_una_jornada():
+    df = pd.DataFrame({
+        "fecha_hora": pd.to_datetime([
+            "2025-03-20 10:00:00", "2025-03-20 10:30:00", "2025-03-20 11:00:00",
+        ]),
+        "nombre_archivo": ["a.xlsx", "a.xlsx", "a.xlsx"],
+    })
+    desglose = desglose_diario(df)
+    assert len(desglose) == 1
+    assert desglose[0]["fecha"] == "2025-03-20"
+    assert desglose[0]["inicio"] == "10:00:00"
+    assert desglose[0]["fin"] == "11:00:00"
+    assert desglose[0]["duracion_seg"] == 3600
+
+
+def test_desglose_diario_dos_dias_separados():
+    df = pd.DataFrame({
+        "fecha_hora": pd.to_datetime([
+            "2025-03-20 10:00:00", "2025-03-20 11:00:00",
+            "2025-03-21 09:00:00", "2025-03-21 09:30:00",
+        ]),
+        "nombre_archivo": ["a.xlsx"] * 4,
+    })
+    desglose = desglose_diario(df)
+    assert len(desglose) == 2
+    assert desglose[0]["fecha"] == "2025-03-20"
+    assert desglose[1]["fecha"] == "2025-03-21"
+    assert desglose[1]["duracion_seg"] == 1800
+
+
+def test_desglose_diario_vacio():
+    assert desglose_diario(pd.DataFrame()) == []
+
+
+def test_desglose_mensual_suma_dias_no_toma_min_max_del_mes():
+    """El punto clave: dos jornadas cortas en el mismo mes NO deben mezclarse
+    en un solo intervalo largo -- el tiempo mensual es la SUMA de las
+    jornadas diarias, no (max del mes - min del mes)."""
+    df = pd.DataFrame({
+        "fecha_hora": pd.to_datetime([
+            "2025-03-01 09:00:00", "2025-03-01 09:15:00",  # jornada de 15 min
+            "2025-03-28 18:00:00", "2025-03-28 18:10:00",  # jornada de 10 min
+        ]),
+        "nombre_archivo": ["a.xlsx"] * 4,
+    })
+    diario = desglose_diario(df)
+    mensual = desglose_mensual(diario)
+    assert len(mensual) == 1
+    assert mensual[0]["mes"] == "2025-03"
+    assert mensual[0]["tiempo_trabajado_seg"] == 15 * 60 + 10 * 60
+    assert mensual[0]["dias_con_medicion"] == 2
+
+
+def test_desglose_mensual_vacio():
+    assert desglose_mensual([]) == []
