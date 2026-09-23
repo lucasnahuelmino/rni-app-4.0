@@ -32,8 +32,22 @@ export const chartsApi = {
 }
 
 export const mapApi = {
-  getMap: (filtros, { bbox, pctMin } = {}) =>
-    api.get('/map', { params: { bbox, pct_min: pctMin, ...Object.fromEntries(filtrosParams(filtros)) } }),
+  getMap: (
+    filtros,
+    {
+      bbox,
+      pctMin,
+      modo,
+    } = {},
+  ) =>
+    api.get('/map', {
+      params: {
+        bbox,
+        pct_min: pctMin,
+        modo,
+        ...Object.fromEntries(filtrosParams(filtros)),
+      },
+    }),
 }
 
 export const diagnosticsApi = {
