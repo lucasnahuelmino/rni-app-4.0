@@ -1,4 +1,5 @@
 import pandas as pd
+import pytest
 
 from app.schemas.filters import FiltrosQuery
 from app.services import import_service, kpis_service, measurements
@@ -14,6 +15,147 @@ def _df_excel_sintetico() -> pd.DataFrame:
         "Lon": [-58.3816, -58.3820, -58.3830, -58.3840],
         "Sonda": ["S1", "S1", "S2", "S2"],
     })
+
+
+def _df_automap_dms() -> pd.DataFrame:
+    """Formato del PRIMER generador, tal cual lo escribe AutoMap
+    ("SAN MIGUEL DE TUCUMAN 1.xlsx"): resultado como texto con coma decimal y
+    coordenadas DMS con letra de hemisferio.
+
+    Lo importante: NO existe columna llamada "Resultado" ni "V/m". Se llama
+    "Resultado con incertidumbre", que era exactamente lo que no matcheaba --
+    por eso toda carga devolvía `registros_nuevos=0` con el aviso
+    "no se encontró columna de Resultado (V/m)".
+    """
+    return pd.DataFrame({
+        "Indice": [1, 2],
+        "Fecha": ["30/9/2025", "30/9/2025"],
+        "Hora": ["14:02:53", "14:03:38"],
+        "Latitud": ['26° 49\' 52,187" S', '26° 49\' 51,222" S'],
+        "Longitud": ['65° 11\' 42,766" O', '65° 11\' 42,442" O'],
+        "Sonda": ["EF1891", "EF1891"],
+        "N° serie de sonda": ["A-0057", "A-0057"],
+        "Fecha de calibración": ["01/21/25", "01/21/25"],
+        "Incertidumbre de medición": ["3,12", "3,12"],
+        "Resultado con incertidumbre": ["0,942", "1,022"],
+        "Unidad": ["V/m", "V/m"],
+        "Tipo de resultado": ["Max Hold", "Max Hold"],
+    })
+
+
+def _df_automap_decimal() -> pd.DataFrame:
+    """Formato del SEGUNDO generador ("AGUAS BLANCAS 2026-09-01
+    105334_reporte.xlsx"): mismos encabezados, pero el resultado ya es número
+    y las coordenadas vienen en grados decimales con signo explícito."""
+    return pd.DataFrame({
+        "Indice": [1, 2],
+        "Fecha": ["1/9/2026", "1/9/2026"],
+        "Hora": ["10:53:33", "10:55:18"],
+        "Latitud": ["-22.735365", "-22.735585"],
+        "Longitud": ["-64.354018", "-64.354225"],
+        "Sonda": ["EF0391", "EF0391"],
+        "N° serie de sonda": ["D-1484", "D-1484"],
+        "Fecha de calibración": ["03.03.26", "03.03.26"],
+        "Incertidumbre de medición": [1.37, 1.37],
+        "Resultado con incertidumbre": [0.69, 1.27],
+        "Unidad": ["V/m", "V/m"],
+        "Tipo de resultado": ["Max Hold", "Max Hold"],
+    })
+
+
+def test_import_acepta_el_formato_automap_dms(conn):
+    """Regresión del bug real reportado por el usuario: los dos generadores
+    nombran la columna "Resultado con incertidumbre" y ninguna trae "Resultado"."""
+    reporte = import_service.importar_lote(
+        conn, ccte="Salta", provincia="Tucumán", localidad="San Miguel",
+        expediente=None, archivos=[("SAN MIGUEL DE TUCUMAN 1.xlsx", _df_automap_dms())],
+    )
+
+    assert reporte["advertencias"] == []
+    assert reporte["registros_nuevos"] == 2
+    assert reporte["registros_rechazados"] == 0
+
+    filas = conn.execute(
+        "SELECT resultado_vm, lat, lon FROM mediciones ORDER BY id"
+    ).fetchall()
+    assert [f["resultado_vm"] for f in filas] == [0.942, 1.022]
+    # DMS con hemisferio: Tucumán está al SUR y al OESTE. Con el regex legacy
+    # salían positivos y el punto caía en el hemisferio equivocado.
+    assert filas[0]["lat"] == pytest.approx(-26.831163055555557)
+    assert filas[0]["lon"] == pytest.approx(-65.19521277777778)
+    assert filas[1]["lat"] < 0 and filas[1]["lon"] < 0
+
+
+def test_import_acepta_el_formato_automap_decimal(conn):
+    reporte = import_service.importar_lote(
+        conn, ccte="Salta", provincia="Salta", localidad="Aguas Blancas",
+        expediente=None,
+        archivos=[("AGUAS BLANCAS 2026-09-01 105334_reporte.xlsx", _df_automap_decimal())],
+    )
+
+    assert reporte["advertencias"] == []
+    assert reporte["registros_nuevos"] == 2
+    assert reporte["registros_rechazados"] == 0
+
+    filas = conn.execute(
+        "SELECT resultado_vm, lat, lon FROM mediciones ORDER BY id"
+    ).fetchall()
+    assert [f["resultado_vm"] for f in filas] == [0.69, 1.27]
+    # Decimal con signo: no pasa por la lógica de hemisferio, sale tal cual.
+    assert filas[0]["lat"] == pytest.approx(-22.735365)
+    assert filas[0]["lon"] == pytest.approx(-64.354018)
+
+
+def test_encabezados_se_comparan_sin_importar_caja_ni_acentos():
+    """La capitalización no debería decidir si una columna se encuentra."""
+    df = pd.DataFrame({
+        "RESULTADO CON INCERTIDUMBRE": ["3,2"],
+        "FECHA ": ["1/9/2026"],
+        "Hora": ["10:53:33"],
+        "LATITUD": ["-22.735365"],
+        "LONGITUD": ["-64.354018"],
+        "SONDA": ["EF0391"],
+    })
+    out, advertencias = import_service._leer_y_normalizar(df, "x.xlsx")
+    assert advertencias == []
+    assert out["resultado_vm"].iloc[0] == pytest.approx(3.2)
+    assert out["lat"].iloc[0] == pytest.approx(-22.735365)
+
+
+def test_resultado_con_nombre_futuro_tambien_se_encuentra():
+    """Respaldo por prefijo: si el generador vuelve a renombrar la columna,
+    cualquier variante que empiece con "Resultado" sirve sin tocar código."""
+    df = pd.DataFrame({
+        "Resultado (V/m)": ["2,5"],
+        "Fecha": ["1/9/2026"],
+        "Hora": ["10:53:33"],
+        "Latitud": ["-22.735365"],
+        "Longitud": ["-64.354018"],
+        "Sonda": ["EF0391"],
+    })
+    out, advertencias = import_service._leer_y_normalizar(df, "x.xlsx")
+    assert advertencias == []
+    assert out["resultado_vm"].iloc[0] == pytest.approx(2.5)
+
+
+def test_no_confunde_tipo_de_resultado_con_el_resultado():
+    """"Tipo de resultado" es el tipo ("Max Hold"), no el valor: el respaldo
+    por prefijo no puede caer ahí. Y el aviso tiene que decir QUÉ buscaba,
+    no solo que algo falló -- con el mensaje genérico no se pudo diagnosticar."""
+    df = pd.DataFrame({
+        "Tipo de resultado": ["Max Hold"],
+        "Fecha": ["1/9/2026"],
+        "Hora": ["10:53:33"],
+        "Latitud": ["-22.735365"],
+        "Longitud": ["-64.354018"],
+        "Sonda": ["EF0391"],
+    })
+    out, advertencias = import_service._leer_y_normalizar(df, "x.xlsx")
+    assert len(advertencias) == 1
+    assert "no se encontró columna de Resultado (V/m)" in advertencias[0]
+    assert "Resultado con incertidumbre" in advertencias[0]  # qué buscaba
+    assert "Tipo de resultado" in advertencias[0]           # qué había
+    assert pd.isna(out["resultado_vm"]).all()
 
 
 def test_import_inserta_y_calcula_resumenes(conn):
