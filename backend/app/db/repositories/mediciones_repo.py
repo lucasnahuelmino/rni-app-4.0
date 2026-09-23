@@ -35,17 +35,25 @@ def insertar_mediciones(conn: sqlite3.Connection, filas: list[dict]) -> list[int
     return ids
 
 
-def existe_medicion(conn: sqlite3.Connection, ccte: str, localidad: str,
+def existe_medicion(conn: sqlite3.Connection, ccte: str, provincia: str, localidad: str,
                      fecha_hora: str | None, resultado_vm: float | None) -> bool:
     """Detección de duplicados por contenido (no solo por nombre de archivo,
     a diferencia del sistema Streamlit actual -- Auditoría Fase 1, hallazgo
-    sobre `carga_excel.py`)."""
+    sobre `carga_excel.py`).
+
+    La clave es la identidad COMPLETA (ccte, provincia, localidad), la misma
+    que usan todas las demás funciones de este módulo. Sin `provincia`, dos
+    localidades homónimas del mismo CCTE se pisaban: en la base real hay dos
+    "San Pedro" (Catamarca y Santiago del Estero), ambas bajo el CCTE Salta,
+    y cargar la segunda hacía que todas sus mediciones contaran como
+    duplicados de la primera y se descartaran en silencio.
+    """
     cur = conn.execute(
         """SELECT 1 FROM mediciones
-           WHERE ccte = ? AND localidad = ?
+           WHERE ccte = ? AND provincia = ? AND localidad = ?
              AND fecha_hora IS ? AND resultado_vm IS ?
            LIMIT 1""",
-        (ccte, localidad, fecha_hora, resultado_vm),
+        (ccte, provincia, localidad, fecha_hora, resultado_vm),
     )
     return cur.fetchone() is not None
 

@@ -50,6 +50,50 @@ def test_import_detecta_duplicados_si_se_reimporta_mismo_archivo(conn):
     assert reporte2["registros_duplicados"] == 3
 
 
+def test_import_no_confunde_localidades_homonimas_de_provincias_distintas(conn):
+    """Reimportar el MISMO contenido bajo un nombre de localidad repetido
+    tiene que insertar, no deduplicar.
+
+    La clave de duplicados es (ccte, provincia, localidad, fecha_hora,
+    resultado_vm). Sin `provincia`, las dos "San Pedro" de la base real
+    (Catamarca y Santiago del Estero, ambas CCTE Salta) competían entre sí y
+    la segunda importación se descartaba entera como duplicada.
+    """
+    df = _df_excel_sintetico()
+
+    primero = import_service.importar_lote(
+        conn, ccte="Salta", provincia="Catamarca", localidad="San Pedro",
+        expediente=None, archivos=[("a.xlsx", df)],
+    )
+    assert primero["registros_nuevos"] == 3
+
+    # Mismo archivo, mismo nombre de localidad, distinta provincia.
+    segundo = import_service.importar_lote(
+        conn, ccte="Salta", provincia="Santiago del Estero", localidad="San Pedro",
+        expediente=None, archivos=[("a.xlsx", df)],
+    )
+    assert segundo["registros_nuevos"] == 3
+    assert segundo["registros_duplicados"] == 0
+
+    filas = conn.execute(
+        "SELECT provincia, COUNT(*) AS n FROM mediciones "
+        "WHERE localidad = 'San Pedro' GROUP BY provincia ORDER BY provincia"
+    ).fetchall()
+    assert [(r["provincia"], r["n"]) for r in filas] == [
+        ("Catamarca", 3),
+        ("Santiago del Estero", 3),
+    ]
+
+    # Y la detección de duplicados sigue funcionando DENTRO de una misma
+    # provincia: una tercera carga idéntica para Catamarca es duplicado.
+    tercero = import_service.importar_lote(
+        conn, ccte="Salta", provincia="Catamarca", localidad="San Pedro",
+        expediente=None, archivos=[("a.xlsx", df)],
+    )
+    assert tercero["registros_nuevos"] == 0
+    assert tercero["registros_duplicados"] == 3
+
+
 def test_kpis_reflejan_los_datos_importados(conn):
     import_service.importar_lote(
         conn, ccte="Córdoba", provincia="Córdoba", localidad="Córdoba Capital",

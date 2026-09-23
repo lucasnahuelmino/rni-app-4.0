@@ -112,7 +112,9 @@ def importar_lote(conn: sqlite3.Connection, *, ccte: str, provincia: str, locali
                 registros_rechazados += 1
                 continue
 
-            if mediciones_repo.existe_medicion(conn, ccte, localidad, fecha_hora_iso, resultado_vm):
+            if mediciones_repo.existe_medicion(
+                conn, ccte, provincia, localidad, fecha_hora_iso, resultado_vm
+            ):
                 registros_duplicados += 1
                 continue
 
