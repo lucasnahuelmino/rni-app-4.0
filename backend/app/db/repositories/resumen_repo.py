@@ -1,4 +1,5 @@
-"""Acceso a las tablas de resumen (resumen_localidad, resumen_ccte, etc.)."""
+"""Acceso a las tablas de resumen (resumen_localidad, resumen_ccte, ...,
+resumen_global) y de la tabla derivada `punto_max`."""
 from __future__ import annotations
 
 import sqlite3
@@ -191,6 +192,91 @@ def recalcular_resumen_mensual(conn: sqlite3.Connection, mes: str, ahora: str) -
            ON CONFLICT(mes) DO UPDATE SET mediciones=excluded.mediciones, actualizado_en=excluded.actualizado_en
         """,
         (mes, row["mediciones"], ahora),
+    )
+
+
+def recalcular_resumen_global(conn: sqlite3.Connection, ahora: str) -> None:
+    """Reconstruye la única fila de `resumen_global`.
+
+    El agregado sobre `mediciones` no se puede incrementalizar por localidad:
+    `COUNT(DISTINCT ...)` y `AVG` dependen de TODAS las filas, no de las que
+    se tocaron, así que se recalcula entero en cada import (medido: ~590 ms,
+    contra los ~0,01 ms de leer la fila ya hecha).
+
+    El detalle del pico se guarda como `pico_id` en vez de copiar los campos:
+    así no puede quedar desincronizado, se busca por clave primaria, y el
+    criterio (`resultado_vm` máximo, empate -> menor `id`) es exactamente el
+    mismo que usa el agregado en vivo cuando hay filtros, lo que permite
+    comparar los dos caminos en los tests.
+    """
+    # Fila única: DELETE + INSERT es más corto que repetir los 8 campos en un
+    # ON CONFLICT DO UPDATE, y el DELETE queda cubierto por la transacción de
+    # la conexión (get_connection hace rollback si el INSERT falla).
+    conn.execute("DELETE FROM resumen_global")
+    conn.execute(
+        """INSERT INTO resumen_global
+             (id, registros_totales, localidades, provincias, cctes,
+              promedio_pct, pico_vm, pico_id, actualizado_en)
+           SELECT 1, g.registros_totales, g.localidades, g.provincias, g.cctes,
+                  g.promedio_pct, g.pico_vm,
+                  (SELECT m.id FROM mediciones m
+                   WHERE m.resultado_vm = g.pico_vm
+                   ORDER BY m.id ASC LIMIT 1),
+                  ?
+           FROM (
+               SELECT COUNT(*) AS registros_totales,
+                      -- La identidad de una localidad es su clave COMPLETA:
+                      -- hay dos "San Pedro" (Catamarca y Santiago del
+                      -- Estero) y contar solo `localidad` daba 60 en vez de
+                      -- 61. char(31) es el unit separator de ASCII, no puede
+                      -- aparecer en un nombre real. Ver obtener_kpis.
+                      COUNT(DISTINCT ccte || char(31) || provincia || char(31) || localidad) AS localidades,
+                      COUNT(DISTINCT provincia) AS provincias,
+                      COUNT(DISTINCT ccte) AS cctes,
+                      AVG(resultado_pct) AS promedio_pct,
+                      MAX(resultado_vm) AS pico_vm
+               FROM mediciones
+           ) AS g""",
+        (ahora,),
+    )
+
+
+def recalcular_punto_max(conn: sqlite3.Connection, ccte: str, provincia: str,
+                         localidad: str) -> None:
+    """Reconstruye los puntos máximos de UNA localidad (camino incremental).
+
+    Es el que se ejecuta en cada import; el total se hace en cascada desde
+    `statistics.recalcular_todo`. La query corre con el índice de
+    `idx_mediciones_ccte_prov_loc` por las tres igualdades del WHERE, así que
+    solo recorre las filas de ESTA localidad: 0,8 ms para una de 160 filas y
+    384 ms para Neuquén (40.716), la más pesada de la base.
+
+    El ORDER BY es `resultado_pct DESC, id ASC` y el `id` no es cosmético:
+    Las Heras tiene 8 filas con exactamente el mismo `resultado_pct` (Río
+    Gallegos 4, Río Primero y Choele Choel 2), así que sin desempate el punto
+    que pinta el mapa podía cambiar entre renders.
+
+    Se borra la localidad entera antes de insertar: si pasara a no tener
+    ninguna fila con coordenadas, no debe quedar ningún punto viejo.
+    """
+    conn.execute(
+        "DELETE FROM punto_max WHERE ccte = ? AND provincia = ? AND localidad = ?",
+        (ccte, provincia, localidad),
+    )
+    conn.execute(
+        """INSERT INTO punto_max
+             (anio, ccte, provincia, localidad, id, lat, lon, resultado_vm, resultado_pct)
+           SELECT anio, ccte, provincia, localidad, id, lat, lon, resultado_vm, resultado_pct
+           FROM (
+               SELECT anio, ccte, provincia, localidad, id, lat, lon, resultado_vm, resultado_pct,
+                      ROW_NUMBER() OVER (PARTITION BY anio
+                                         ORDER BY resultado_pct DESC, id ASC) AS rn
+               FROM mediciones
+               WHERE ccte = ? AND provincia = ? AND localidad = ?
+                 AND lat IS NOT NULL AND lon IS NOT NULL
+           )
+           WHERE rn = 1""",
+        (ccte, provincia, localidad),
     )
 
 

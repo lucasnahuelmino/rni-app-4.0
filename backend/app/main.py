@@ -4,7 +4,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import charts, colors, diagnostics, imports, kpis, localities, map as map_routes, reports, tiempos
-from app.db.database import init_schema
+from app.db.database import get_connection, init_schema
+from app.services import statistics
 
 app = FastAPI(title="RNI API", version="1.0.0")
 
@@ -19,6 +20,11 @@ app.add_middleware(
 @app.on_event("startup")
 def on_startup() -> None:
     init_schema()
+    # Crea las tablas (si hacía falta) y las llena si nacieron vacías: a una
+    # base existente solo se le aplica el DDL nuevo, que usa IF NOT EXISTS y
+    # por eso no escribe datos. Ver services/statistics.poblar_tablas_derivadas.
+    with get_connection() as conn:
+        statistics.poblar_tablas_derivadas(conn)
 
 
 app.include_router(kpis.router, prefix="/api", tags=["kpis"])

@@ -15,6 +15,51 @@ router = APIRouter()
 _CASILLEROS = "id, lat, lon, resultado_vm, resultado_pct, provincia, localidad, ccte"
 
 
+def _concatenar(where: str, condiciones: list[str]) -> str:
+    """Pega condiciones extra al `where` que devuelve construir_where.
+
+    Ese `where` puede venir vacío (sin filtros) o ya con su "WHERE". Unir a
+    ciegas con " AND " dejaría "AND lat IS NOT NULL ..." sin WHERE cuando no
+    hay filtros, y en cambio sin el " AND " sobraría cuando sí los hay.
+    """
+    if not condiciones:
+        return where
+    if not where:
+        return "WHERE " + " AND ".join(condiciones)
+    return where + " AND " + " AND ".join(condiciones)
+
+
+# Un único SQL para los DOS caminos de `modo=max_localidad` (la tabla
+# precalculada `punto_max` y el respaldo sobre `mediciones`), para que no
+# puedan divergir nunca en el criterio con el que se elige el punto.
+#
+# El desempate `id ASC` no es cosmético: en la base real Las Heras tiene 8
+# filas con exactamente el mismo `resultado_pct` (Río Gallegos 4, Río Primero
+# y Choele Choel 2). Sin él, decide el orden en que SQLite devuelve las filas
+# y el punto del popup podía cambiar entre renders.
+#
+# El filtro (bbox, pct_min, anio...) va DENTRO del subquery y `rn` afuera:
+# el ganador se elige entre los puntos que PASAN el filtro, no al revés.
+# Ese es el orden que ya tenía la query original antes de precalcular.
+_SQL_MAX_LOCALIDAD = """
+    SELECT id, lat, lon, resultado_vm, resultado_pct, provincia, localidad, ccte
+    FROM (
+        SELECT id, lat, lon, resultado_vm, resultado_pct, provincia, localidad, ccte,
+               ROW_NUMBER() OVER (
+                   PARTITION BY ccte, provincia, localidad
+                   ORDER BY resultado_pct DESC, id ASC
+               ) AS rn
+        FROM {tabla}
+        {where}
+    )
+    WHERE rn = 1
+    -- Orden fijo. Sin él, el orden de salida depende de cómo SQLite
+    -- materialice la window function, y los dos caminos podían devolver los
+    -- mismos puntos en distinto orden.
+    ORDER BY ccte, provincia, localidad
+"""
+
+
 def _muestra_proporcional(conn, where_full: str, params: list, tope: int) -> list[dict]:
     """Trae hasta `tope` puntos repartidos entre TODAS las localidades.
 
@@ -33,19 +78,36 @@ def _muestra_proporcional(conn, where_full: str, params: list, tope: int) -> lis
     o sea que no muestrea cuando no hace falta, solo recorta cuando pasa.
 
     Se resuelve con una query por localidad en vez de con una window
-    function (`ROW_NUMBER() OVER (...)`) porque esa opcion obliga a
-    materializar y ordenar las 219.818 filas: medida contra la base real,
-    tarda 1.366 ms contra los ~400 ms de esto, y el modo
-    `max_localidad` -- que si usa la window function-- tarda 1.862 ms.
+    function (`ROW_NUMBER() OVER (...)`) sobre TODA la tabla, porque eso
+    obliga a materializar y ordenar las 219.818 filas: medida contra la base
+    real, tarda 1.366 ms contra los ~400 ms de esto.
 
-    Las queries individuales fuerzan `idx_mediciones_ccte_prov_loc`;
-    ver el comentario ahí abajo, es la diferencia entre 0.4 s y 20 s.
+    (El modo `max_localidad` SIEMPRE usó una window function, pero ya no
+    sobre `mediciones`: la sirve desde la tabla precalculada `punto_max`,
+    de 62 filas. Ver `_SQL_MAX_LOCALIDAD`.)
+
+    Las queries individuales de abajo fuerzan `idx_mediciones_ccte_prov_loc`;
+    ver el comentario ahí, es la diferencia entre 0.4 s y 20 s. La
+    agrupación de arriba lo fuerza por la misma razón.
     """
     grupos = [
         dict(g)
         for g in conn.execute(
+            # `INDEXED BY` también acá, por la misma razón que en las queries
+            # por localidad de más abajo: con un bbox en el WHERE, SQLite
+            # prefiere idx_mediciones_lat_lon porque el rango de lat parece
+            # más selectivo, y entonces el GROUP BY termina recorriendo la
+            # tabla entera buscando la localidad. Con el índice de la clave
+            # de agrupación las filas salen ya ordenadas y no hace falta
+            # un temp store. Medido contra la base real: con bbox la
+            # agrupación pasó de 1.066 a 410 ms (2,60x); sin bbox la
+            # diferencia es nula (353 -> 347 ms), así que no cuesta nada.
+            #
+            # OJO: esto NO se puede copiar al COUNT(*) del final: medido,
+            # empeora de 116 a 328 ms, porque ahí no hay agrupación que
+            # ordenar y el recorrido de índice con lookups solo suma.
             f"SELECT ccte, provincia, localidad, COUNT(*) AS n "
-            f"FROM mediciones {where_full} "
+            f"FROM mediciones INDEXED BY idx_mediciones_ccte_prov_loc {where_full} "
             f"GROUP BY ccte, provincia, localidad",
             params,
         ).fetchall()
@@ -106,8 +168,12 @@ def get_map(bbox: str | None = None, pct_min: float | None = None, modo: str = "
       los puntos" sin decirlo).
     - "max_localidad": un solo punto por localidad -- el de mayor
       resultado_pct -- para poder ver el país completo sin street-level
-      density. No trunca (ya es liviano: como mucho, una fila por
-      localidad).
+      density. No trunca (como mucho, una fila por localidad). Se lee de
+      la tabla precalculada `punto_max`, de 62 filas: la query equivalente
+      sobre `mediciones` tarda 2.756 ms con bbox y era la carga por
+      defecto del mapa, esta baja a ~0.7 ms. Si `punto_max` está vacía
+      (ver statistics.poblar_tablas_derivadas) cae a la query original,
+      más lenta pero idéntica.
 
     Los filtros (incluido `localidad`, para buscar un punto puntual) se
     aplican en SQL ANTES del límite/muestreo, nunca después.
@@ -121,7 +187,12 @@ def get_map(bbox: str | None = None, pct_min: float | None = None, modo: str = "
         raise HTTPException(status_code=400, detail="modo debe ser 'todos' o 'max_localidad'")
 
     where, params = construir_where(filtros.ccte, filtros.provincia, filtros.anio, filtros.localidad)
-    extra = ["lat IS NOT NULL", "lon IS NOT NULL"]
+
+    # Condiciones que comparten los tres caminos (muestra proporcional,
+    # max_localidad precalculado y max_localidad de respaldo). Van aparte de
+    # `lat/lon IS NOT NULL` porque `punto_max` solo guarda filas que ya tienen
+    # coordenadas: ahí ese predicado es redundante.
+    compartidas: list[str] = []
 
     if bbox:
         # Sin esta validación, un bbox malformado ("a,b" o "1,2,3") llegaba
@@ -136,37 +207,35 @@ def get_map(bbox: str | None = None, pct_min: float | None = None, modo: str = "
             lat_min, lat_max, lon_min, lon_max = (float(p) for p in partes)
         except ValueError:
             raise HTTPException(status_code=400, detail="bbox debe contener 4 números") from None
-        extra.append("lat BETWEEN ? AND ?")
-        extra.append("lon BETWEEN ? AND ?")
+        compartidas.append("lat BETWEEN ? AND ?")
+        compartidas.append("lon BETWEEN ? AND ?")
         params += [lat_min, lat_max, lon_min, lon_max]
 
     if pct_min is not None:
-        extra.append("resultado_pct >= ?")
+        compartidas.append("resultado_pct >= ?")
         params.append(pct_min)
 
-    where_full = (where + " AND " + " AND ".join(extra)) if where else ("WHERE " + " AND ".join(extra))
+    # El mismo `params` sirve para los dos caminos: `lat/lon IS NOT NULL` no
+    # llevan parámetros, así que las listas de valores quedan idénticas.
+    where_full = _concatenar(where, ["lat IS NOT NULL", "lon IS NOT NULL"] + compartidas)
+    where_pm = _concatenar(where, compartidas)
 
     if modo == "max_localidad":
-        # Un punto por localidad: el de mayor resultado_pct. Se resuelve
-        # con una window function en SQL (no en Pandas) para no traer las
-        # 219k filas al backend y filtrar ahí -- justamente lo que la
-        # Auditoría Fase 1 pidió evitar.
-        cur = conn.execute(
-            f"""
-            SELECT id, lat, lon, resultado_vm, resultado_pct, provincia, localidad, ccte
-            FROM (
-                SELECT id, lat, lon, resultado_vm, resultado_pct, provincia, localidad, ccte,
-                       ROW_NUMBER() OVER (
-                           PARTITION BY ccte, provincia, localidad
-                           ORDER BY resultado_pct DESC
-                       ) AS rn
-                FROM mediciones
-                {where_full}
-            )
-            WHERE rn = 1
-            """,
-            params,
-        )
+        # Un punto por localidad: el de mayor resultado_pct. Se resuelve con
+        # una window function en SQL (no en Pandas) para no traer las 219k
+        # filas al backend y filtrar ahí -- justamente lo que la Auditoría
+        # Fase 1 pidió evitar -- y corriendo sobre `punto_max` en vez de
+        # sobre `mediciones`, que es lo que lleva esto de 2.756 ms a ~0.7 ms.
+        #
+        # `punto_max` vacía no significa "no hay datos": puede ser una base
+        # a la que recién se le aplicó el DDL. En ese caso se cae al mismo
+        # SQL (un solo template, `_SQL_MAX_LOCALIDAD`) con la otra tabla, así
+        # que lo único que cambia es el costo, nunca el resultado.
+        if conn.execute("SELECT 1 FROM punto_max LIMIT 1").fetchone():
+            tabla, condiciones = "punto_max", where_pm
+        else:
+            tabla, condiciones = "mediciones", where_full
+        cur = conn.execute(_SQL_MAX_LOCALIDAD.format(tabla=tabla, where=condiciones), params)
         puntos = [dict(r) for r in cur.fetchall()]
         return {"puntos": puntos, "total_disponible": len(puntos), "truncado": False, "modo": modo}
 

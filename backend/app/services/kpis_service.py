@@ -1,9 +1,17 @@
 """KPIs agregados a nivel nacional (con filtros opcionales).
 
-Cuando no hay filtros, se sirve directamente desde resumen_ccte/resumen_anual
-(pre-calculado). Cuando hay filtros que no coinciden 1:1 con esas tablas, se
-recurre a un agregado SQL directo sobre `mediciones` (nunca se carga la tabla
-completa a pandas)."""
+Sin filtros se sirven desde `resumen_global` (UNA fila precalculada por
+`resumen_repo.recalcular_resumen_global`): el agregado en vivo sobre las
+219.818 filas tarda 590 ms y es la carga del dashboard (GET /api/kpis sin
+parámetros medía 532 ms de HTTP).
+
+Con filtros no hay atajo posible -- haría falta una tabla por combinación
+ccte x provincia x anio, y ni siquiera una sola clave en solitario coincide
+1:1 con las tablas que ya existen (resumen_ccte, por ejemplo, no guarda ni
+promedio_pct ni cctes) -- así que se recurre al agregado SQL directo sobre
+`mediciones`. Ese scan baja a ~94 ms cuando la clave está fija, porque usa
+su índice. Nunca se carga la tabla completa a pandas.
+"""
 from __future__ import annotations
 
 import sqlite3
@@ -14,7 +22,46 @@ from app.db.repositories.mediciones_repo import construir_where
 from app.schemas.filters import FiltrosQuery
 
 
+def _kpis_precalculados(conn: sqlite3.Connection) -> dict | None:
+    """`resumen_global`, o None si la tabla todavía no se construyó.
+
+    El None no es cosmético: hay que caer al agregado en vivo de abajo en vez
+    de romper, porque la tabla puede estar vacía en una base recién creada
+    desde cero (el arranque la llena, pero un test que la vacíe a mano o una
+    migración a medias no tiene por qué haberlo hecho).
+    """
+    fila = conn.execute("SELECT * FROM resumen_global WHERE id = 1").fetchone()
+    if fila is None:
+        return None
+
+    pico_maximo = None
+    if fila["pico_id"] is not None:
+        detalle = conn.execute(
+            """SELECT localidad, provincia, ccte, resultado_vm, resultado_pct, expediente
+               FROM mediciones WHERE id = ?""",
+            (fila["pico_id"],),
+        ).fetchone()
+        if detalle:
+            pico_maximo = dict(detalle)
+
+    return {
+        "registros_totales": fila["registros_totales"] or 0,
+        "localidades": fila["localidades"] or 0,
+        "provincias": fila["provincias"] or 0,
+        "cctes": fila["cctes"] or 0,
+        "promedio_pct": fila["promedio_pct"],
+        "pico_maximo": pico_maximo,
+    }
+
+
 def obtener_kpis(conn: sqlite3.Connection, filtros: FiltrosQuery) -> dict:
+    # `filtros.localidad` no entra: construir_where acá abajo tampoco lo usa,
+    # los KPIs son nacionales por diseño.
+    if not (filtros.ccte or filtros.provincia or filtros.anio):
+        precalculado = _kpis_precalculados(conn)
+        if precalculado is not None:
+            return precalculado
+
     where, params = construir_where(filtros.ccte, filtros.provincia, filtros.anio)
 
     # "Localidades" son lugares distintos, no nombres distintos: hay DOS
@@ -36,10 +83,15 @@ def obtener_kpis(conn: sqlite3.Connection, filtros: FiltrosQuery) -> dict:
 
     pico_maximo = None
     if row["pico_vm"] is not None:
+        # ORDER BY id ASC: el agregado vive sin filtro elige el pico con el
+        # mismo criterio (ver recalcular_resumen_global), y sin este orden el
+        # LIMIT 1 devolvía la primera fila que encontrara el plan -- hoy
+        # coincide porque el recorrido de tabla sale en orden de rowid, pero
+        # no está garantizado y no se puede comparar contra el atajo.
         detalle = conn.execute(
             f"""SELECT localidad, provincia, ccte, resultado_vm, resultado_pct, expediente
                 FROM mediciones {where} {"AND" if where else "WHERE"} resultado_vm = ?
-                LIMIT 1""",
+                ORDER BY id ASC LIMIT 1""",
             params + [row["pico_vm"]],
         ).fetchone()
         if detalle:
