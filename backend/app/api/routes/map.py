@@ -9,7 +9,10 @@ from app.schemas.filters import FiltrosQuery, filtros_query
 
 router = APIRouter()
 
-_CASILLEROS = "id, lat, lon, resultado_vm, resultado_pct, localidad, ccte"
+# `provincia` va en el payload porque el nombre de localidad no alcanza para
+# identificar un punto: hay DOS "San Pedro" (Catamarca y Santiago del Estero).
+# Sin provincia, los dos popups del mapa eran literalmente indistinguibles.
+_CASILLEROS = "id, lat, lon, resultado_vm, resultado_pct, provincia, localidad, ccte"
 
 
 def _muestra_proporcional(conn, where_full: str, params: list, tope: int) -> list[dict]:
@@ -150,9 +153,9 @@ def get_map(bbox: str | None = None, pct_min: float | None = None, modo: str = "
         # Auditoría Fase 1 pidió evitar.
         cur = conn.execute(
             f"""
-            SELECT id, lat, lon, resultado_vm, resultado_pct, localidad, ccte
+            SELECT id, lat, lon, resultado_vm, resultado_pct, provincia, localidad, ccte
             FROM (
-                SELECT id, lat, lon, resultado_vm, resultado_pct, localidad, ccte,
+                SELECT id, lat, lon, resultado_vm, resultado_pct, provincia, localidad, ccte,
                        ROW_NUMBER() OVER (
                            PARTITION BY ccte, provincia, localidad
                            ORDER BY resultado_pct DESC

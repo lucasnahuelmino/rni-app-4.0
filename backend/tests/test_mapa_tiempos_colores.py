@@ -41,6 +41,41 @@ def test_map_modo_max_localidad_trae_un_punto_por_localidad(conn):
     assert caba["resultado_vm"] == 10.0  # el de mayor resultado_pct de esa localidad
 
 
+def test_map_payload_trae_provincia_para_distinguir_homonimas(conn):
+    """El payload del mapa tiene que traer `provincia`.
+
+    En la base real hay DOS "San Pedro": Catamarca y Santiago del Estero,
+    ambas bajo el CCTE Salta. Sin provincia, los dos popups del mapa eran
+    literalmente indistinguibles (mismo localidad, mismo ccte).
+    """
+    import_service.importar_lote(
+        conn, ccte="Salta", provincia="Catamarca", localidad="San Pedro",
+        expediente=None, archivos=[("a.xlsx", _df_dos_dias(-27.9460, -65.0960))],
+    )
+    import_service.importar_lote(
+        conn, ccte="Salta", provincia="Santiago del Estero", localidad="San Pedro",
+        expediente=None, archivos=[("b.xlsx", _df_dos_dias(-27.7000, -64.8600))],
+    )
+
+    from app.api.routes.map import get_map
+
+    # Los dos caminos que pinta el frontend: la vista general (muestreo
+    # proporcional) y el modo automático por zoom (una fila por localidad).
+    for modo in ("todos", "max_localidad"):
+        puntos = get_map(modo=modo, filtros=FiltrosQuery(), conn=conn)["puntos"]
+        assert puntos, modo
+
+        # Presente Y no vacío: un `provincia: null` no distingue nada.
+        assert all(p.get("provincia") for p in puntos), modo
+
+        # La identidad completa es (ccte, provincia, localidad). Si el
+        # backend agrupara solo por localidad+ccte, las dos filas
+        # colapsarían en una sola.
+        identidades = {(p["ccte"], p["provincia"], p["localidad"]) for p in puntos}
+        assert len(identidades) == 2, modo
+        assert {p["provincia"] for p in puntos} == {"Catamarca", "Santiago del Estero"}, modo
+
+
 def test_map_modo_invalido_rechaza(conn):
     from fastapi import HTTPException
     from app.api.routes.map import get_map

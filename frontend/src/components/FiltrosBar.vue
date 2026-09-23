@@ -26,6 +26,9 @@ function agregarAnio() {
 </script>
 
 <template>
+  <!-- Los filtros globales de CCTE/Provincia/Año no afectan a la vista del
+       mapa a menos que la casilla del propio mapa esté activa (decisión de
+       diseño registrada en DESIGN.md): no es un bug, es a propósito. -->
   <div class="filtros">
     <button class="btn btn--ghost" @click="abierto = !abierto" :aria-expanded="abierto" aria-controls="panel-filtros">
       Filtros
