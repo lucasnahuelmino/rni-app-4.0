@@ -136,6 +136,15 @@ button {
   cursor: pointer;
 }
 
+/* Fila de botones secundarios dentro de un formulario o de un diálogo de
+   confirmación (Guardar/Cancelar, Eliminar/Cancelar). Global porque dos
+   componentes distintos de Gestión la necesitan y el scoped CSS no cruza
+   componentes. */
+.acciones-fila {
+  display: flex;
+  gap: var(--space-4);
+}
+
 a {
   color: var(--signal-deep);
 }
