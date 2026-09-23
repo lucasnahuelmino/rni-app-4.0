@@ -10,13 +10,26 @@ const escala = useColorScaleStore()
 onMounted(() => escala.asegurarCargado())
 
 const color = computed(() => escala.colorPorPct(props.pct))
-const etiqueta = computed(() => escala.etiquetaPorPct(props.pct))
+
+// El texto es el valor REAL (% del límite normativo), no el rango al que
+// pertenece. En la tabla de Resumen, en el detalle de Gestión y en el pico
+// máximo del Dashboard se comparan filas entre sí, y "35–50 %" no se puede
+// ordenar ni distinguir de "20–35 %" de un vistazo: todos los valores caían
+// agrupados en 10 etiquetas repetidas. El color del borde y del punto sigue
+// siendo el semáforo, que es el que dice el tramo; el rango se conserva en
+// el `title` para quien quiera verlo al pasar el mouse.
+const valor = computed(() => (props.pct != null ? `${props.pct.toFixed(1)}%` : null))
+const rango = computed(() => escala.etiquetaPorPct(props.pct))
 </script>
 
 <template>
-  <span class="badge-color" :style="{ '--badge-color': color }">
+  <span
+    class="badge-color"
+    :style="{ '--badge-color': color }"
+    :title="valor != null ? `${valor} del límite normativo · rango ${rango}` : undefined"
+  >
     <span class="badge-color__dot" aria-hidden="true"></span>
-    <span v-if="pct != null" class="num">{{ etiqueta }}</span>
+    <span v-if="valor != null" class="num">{{ valor }}</span>
     <span v-else>Sin dato</span>
   </span>
 </template>

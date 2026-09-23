@@ -268,6 +268,12 @@ td.num {
   text-align: right;
 }
 
+/* Igual que td.num: las cabeceras numéricas tienen que caer sobre su
+   columna, no a la izquierda. */
+th.num {
+  text-align: right;
+}
+
 .btn {
   border: 1px solid var(--ink);
   background: var(--ink);
