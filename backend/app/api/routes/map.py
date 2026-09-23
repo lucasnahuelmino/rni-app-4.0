@@ -9,6 +9,85 @@ from app.schemas.filters import FiltrosQuery, filtros_query
 
 router = APIRouter()
 
+_CASILLEROS = "id, lat, lon, resultado_vm, resultado_pct, localidad, ccte"
+
+
+def _muestra_proporcional(conn, where_full: str, params: list, tope: int) -> list[dict]:
+    """Trae hasta `tope` puntos repartidos entre TODAS las localidades.
+
+    Un `SELECT ... LIMIT 5000` sin ORDER BY no garantiza nada: SQLite
+    devuelve las filas en el orden en que las encuentra, que en la práctica
+    es el orden de insercion, asi que las primeras 5000 salian todas del
+    mismo lote de importacion. Con la base actual eso eran exactamente 3
+    localidades (Puerto Deseado 2712, Comandante Luis Piedrabuena 1733,
+    Puerto San Julian 555) de las 61 que existen: el mapa mostraba un
+    puñado de puntos en Santa Cruz y el resto del país en blanco.
+
+    Cada localidad recibe una cuota proporcional a su tamaño con piso 1.
+    El piso es lo que garantiza que ninguna quede afuera, y como
+    `tope * n // total >= n` siempre que `total <= tope`, cuando todo entra
+    cada cuota supera al grupo y la query devuelve la localidad COMPLETA:
+    o sea que no muestrea cuando no hace falta, solo recorta cuando pasa.
+
+    Se resuelve con una query por localidad en vez de con una window
+    function (`ROW_NUMBER() OVER (...)`) porque esa opcion obliga a
+    materializar y ordenar las 219.818 filas: medida contra la base real,
+    tarda 1.366 ms contra los ~400 ms de esto, y el modo
+    `max_localidad` -- que si usa la window function-- tarda 1.862 ms.
+
+    Las queries individuales fuerzan `idx_mediciones_ccte_prov_loc`;
+    ver el comentario ahí abajo, es la diferencia entre 0.4 s y 20 s.
+    """
+    grupos = [
+        dict(g)
+        for g in conn.execute(
+            f"SELECT ccte, provincia, localidad, COUNT(*) AS n "
+            f"FROM mediciones {where_full} "
+            f"GROUP BY ccte, provincia, localidad",
+            params,
+        ).fetchall()
+    ]
+    if not grupos:
+        return []
+
+    total = sum(g["n"] for g in grupos)
+
+    if len(grupos) > tope:
+        # Mas localidades que puntos permitidos: no alcanza ni un punto por
+        # localidad, asi que el reparto proporcional ya no puede cumplir su
+        # promesa y hacer una query por localidad seria un desastre.
+        cur = conn.execute(
+            f"SELECT {_CASILLEROS} FROM mediciones {where_full} LIMIT ?",
+            params + [tope],
+        )
+        return [dict(r) for r in cur.fetchall()]
+
+    puntos: list[dict] = []
+    for g in grupos:
+        cuota = max(1, tope * g["n"] // total)
+        # `INDEXED BY` no es cosmético. Con un bbox en el WHERE, SQLite elige
+        # idx_mediciones_lat_lon porque el rango de lat parece más selectivo,
+        # y entonces cada una de estas queries recorre casi la tabla entera
+        # buscando la localidad: contra la base real, con el bbox de país
+        # completo las 61 queries pasaron de 63 ms a 18.648 ms (el endpoint
+        # entero se iba a 20 s). Forzado el índice, el bbox queda como filtro
+        # residual sobre las filas de ESA localidad, que es justo lo que se
+        # quiere. Sin bbox la diferencia es nula, y con bbox chico también.
+        #
+        # El índice existe en schema.sql y init_schema() corre en el startup,
+        # así que no se puede encontrar con que falte.
+        cur = conn.execute(
+            f"SELECT {_CASILLEROS} FROM mediciones "
+            f"INDEXED BY idx_mediciones_ccte_prov_loc "
+            f"{where_full} "
+            f"AND ccte = ? AND provincia = ? AND localidad = ? "
+            f"LIMIT ?",
+            params + [g["ccte"], g["provincia"], g["localidad"], cuota],
+        )
+        puntos.extend(dict(r) for r in cur.fetchall())
+
+    return puntos[:tope]
+
 
 @router.get("/map")
 def get_map(bbox: str | None = None, pct_min: float | None = None, modo: str = "todos",
@@ -16,10 +95,12 @@ def get_map(bbox: str | None = None, pct_min: float | None = None, modo: str = "
     """`bbox` = "lat_min,lat_max,lon_min,lon_max".
 
     `modo`:
-    - "todos" (default): todos los puntos que matchean los filtros, truncado
-      a MAX_PUNTOS_MAPA con aviso explícito de que es una muestra (Auditoría
-      Fase 1: nunca se debe interpretar un LIMIT como "todos los puntos"
-      sin decirlo).
+    - "todos" (default): hasta MAX_PUNTOS_MAPA puntos, repartidos entre
+      TODAS las localidades que matchean los filtros (muestreo
+      proporcional con piso 1 por localidad, ver `_muestra_proporcional`),
+      con aviso explícito de que es una muestra cuando no entra todo
+      (Auditoría Fase 1: nunca se debe interpretar un LIMIT como "todos
+      los puntos" sin decirlo).
     - "max_localidad": un solo punto por localidad -- el de mayor
       resultado_pct -- para poder ver el país completo sin street-level
       density. No trunca (ya es liviano: como mucho, una fila por
@@ -27,6 +108,11 @@ def get_map(bbox: str | None = None, pct_min: float | None = None, modo: str = "
 
     Los filtros (incluido `localidad`, para buscar un punto puntual) se
     aplican en SQL ANTES del límite/muestreo, nunca después.
+
+    El frontend manda `bbox` con el viewport visible en cada `moveend`,
+    asi que al hacer zoom la respuesta son los puntos de la zona que se
+    esta mirando y no hace falta muestrear: cuando entran todos, cada
+    cuota supera al grupo y se devuelve completo.
     """
     if modo not in ("todos", "max_localidad"):
         raise HTTPException(status_code=400, detail="modo debe ser 'todos' o 'max_localidad'")
@@ -83,12 +169,7 @@ def get_map(bbox: str | None = None, pct_min: float | None = None, modo: str = "
 
     total_disponible = conn.execute(f"SELECT COUNT(*) AS n FROM mediciones {where_full}", params).fetchone()["n"]
 
-    cur = conn.execute(
-        f"""SELECT id, lat, lon, resultado_vm, resultado_pct, localidad, ccte
-            FROM mediciones {where_full} LIMIT ?""",
-        params + [MAX_PUNTOS_MAPA],
-    )
-    puntos = [dict(r) for r in cur.fetchall()]
+    puntos = _muestra_proporcional(conn, where_full, params, MAX_PUNTOS_MAPA)
 
     return {
         "puntos": puntos,

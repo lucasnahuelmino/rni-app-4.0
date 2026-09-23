@@ -17,6 +17,7 @@ const loading = ref(false)
 const error = ref(null)
 const truncado = ref(false)
 const totalDisponible = ref(0)
+const puntosMostrados = ref(0)
 
 const mapContainer = ref(null)
 let mapa = null
@@ -30,20 +31,57 @@ function escaparHtml(valor) {
   return String(valor ?? '').replace(/[&<>"']/g, (c) => ESCAPAR[c])
 }
 
+// El viewport actual en el formato que espera el backend:
+// "lat_min,lat_max,lon_min,lon_max".
+function bboxActual() {
+  if (!mapa) return undefined
+  const b = mapa.getBounds()
+  return `${b.getSouth()},${b.getNorth()},${b.getWest()},${b.getEast()}`
+}
+
+// Clave de todo lo que cambia la respuesta. Leaflet dispara moveend en
+// varios momentos en los que el viewport no varió, y sin esta guarda cada
+// pan o zoom volvería a pedir exactamente lo mismo.
+let ultimaClave = null
+let debounceMovimiento = null
+
 async function cargarPuntos() {
+  const base = aplicarFiltros.value ? filtros : { ccte: [], provincia: [], anio: [] }
+  const buscando = localidadBusqueda.value.trim()
+
+  // La búsqueda por localidad tiene prioridad sobre el viewport: el backend
+  // aplica bbox y localidad con AND, así que buscar una ciudad mientras el
+  // mapa está en la otra punta del país devolvería 0 puntos y se vería
+  // "Sin datos" para algo que sí existe.
+  const solicitud = {
+    ccte: [...base.ccte],
+    provincia: [...base.provincia],
+    anio: [...base.anio],
+    localidad: buscando ? [buscando] : [],
+    modo: modo.value,
+    bbox: buscando ? undefined : bboxActual(),
+  }
+
+  const clave = JSON.stringify(solicitud)
+  if (clave === ultimaClave) return
+  ultimaClave = clave
+
   loading.value = true
   error.value = null
   try {
-    const base = aplicarFiltros.value ? filtros : { ccte: [], provincia: [], anio: [] }
     const filtrosAEnviar = {
-      ccte: base.ccte,
-      provincia: base.provincia,
-      anio: base.anio,
-      localidad: localidadBusqueda.value.trim() ? [localidadBusqueda.value.trim()] : [],
+      ccte: solicitud.ccte,
+      provincia: solicitud.provincia,
+      anio: solicitud.anio,
+      localidad: solicitud.localidad,
     }
-    const { data } = await mapApi.getMap(filtrosAEnviar, { modo: modo.value })
+    const { data } = await mapApi.getMap(filtrosAEnviar, {
+      modo: solicitud.modo,
+      bbox: solicitud.bbox,
+    })
     truncado.value = data.truncado
     totalDisponible.value = data.total_disponible
+    puntosMostrados.value = data.puntos.length
 
     capaMarcadores.clearLayers()
     data.puntos.forEach((p) => {
@@ -66,6 +104,9 @@ async function cargarPuntos() {
     })
   } catch (e) {
     error.value = e
+    // Si no se limpia, "Reintentar" chocaría con la misma clave y el botón
+    // no haría nada.
+    ultimaClave = null
   } finally {
     loading.value = false
   }
@@ -78,10 +119,21 @@ onMounted(async () => {
     attribution: '&copy; OpenStreetMap contributors',
   }).addTo(mapa)
   capaMarcadores = L.layerGroup().addTo(mapa)
+
+  // moveend también dispara al hacer zoom, que es cuando queremos pedir los
+  // puntos del área que se está mirando en vez de una muestra nacional.
+  // Se registra DESPUÉS del setView inicial para que no dispare un segundo
+  // fetch junto con el de abajo; la clave es una red de seguridad más.
+  mapa.on('moveend', () => {
+    clearTimeout(debounceMovimiento)
+    debounceMovimiento = setTimeout(cargarPuntos, 250)
+  })
+
   cargarPuntos()
 })
 
 onBeforeUnmount(() => {
+  clearTimeout(debounceMovimiento)
   mapa?.remove()
 })
 
@@ -144,8 +196,9 @@ function onLocalidadInput() {
         Un punto por localidad: el de mayor % del límite registrado en cada una.
       </p>
       <p v-if="truncado" class="mapa-nota mapa-nota--aviso">
-        Mostrando una <strong>muestra</strong> de {{ totalDisponible }} puntos disponibles. Cambiá a "Máximo por
-        localidad" o agregá filtros para ver el detalle completo.
+        Mostrando <strong>{{ puntosMostrados }} de {{ totalDisponible }}</strong> puntos de esta vista,
+        repartidos en proporción entre todas las localidades. <strong>Hacé zoom</strong> para cargar los
+        puntos del área que estés mirando.
       </p>
 
       <!-- role=list porque aria-label sobre un div sin role no se expone como

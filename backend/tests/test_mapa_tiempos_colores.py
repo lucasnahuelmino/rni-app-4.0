@@ -4,13 +4,20 @@ from app.schemas.filters import FiltrosQuery
 from app.services import import_service, tiempos as tiempos_service
 
 
-def _df_dos_dias() -> pd.DataFrame:
+def _df_dos_dias(lat: float = -34.6037, lon: float = -58.3816) -> pd.DataFrame:
+    """Dos días de mediciones alrededor de (lat, lon).
+
+    Las coordenadas son parámetro y no un valor fijo: sin esto todas las
+    localidades importadas en un mismo test caían exactamente en el mismo
+    punto del mapa y ningún filtro por bbox se podía probar (el bbox de CABA
+    devolvía también a Salta y a Mendoza, porque estaban "en" CABA).
+    """
     return pd.DataFrame({
         "Resultado": ["1,5", "3.2", "10", "2.1"],
         "Fecha": ["20/03/2025", "20/03/2025", "21/03/2025", "21/03/2025"],
         "Hora": ["10:00:00", "10:30:00", "09:00:00 a.m.", "09:20:00 a.m."],
-        "Lat": [-34.6037, -34.6040, -34.6050, -34.6060],
-        "Lon": [-58.3816, -58.3820, -58.3830, -58.3840],
+        "Lat": [lat, lat + 0.0003, lat + 0.0013, lat + 0.0023],
+        "Lon": [lon, lon - 0.0004, lon - 0.0014, lon - 0.0024],
         "Sonda": ["S1", "S1", "S2", "S2"],
     })
 
@@ -57,6 +64,87 @@ def test_map_filtro_localidad(conn):
     resultado = get_map(modo="todos", filtros=FiltrosQuery(localidad=["CABA"]), conn=conn)
     assert all(p["localidad"] == "CABA" for p in resultado["puntos"])
     assert resultado["total_disponible"] == 4
+
+
+def _importar_tres_localidades(conn):
+    """Tres localidades en tres puntos distintos del país."""
+    import_service.importar_lote(
+        conn, ccte="Buenos Aires", provincia="Buenos Aires", localidad="CABA",
+        expediente=None, archivos=[("a.xlsx", _df_dos_dias(-34.6037, -58.3816))],
+    )
+    import_service.importar_lote(
+        conn, ccte="Salta", provincia="Salta", localidad="Salta Capital",
+        expediente=None, archivos=[("b.xlsx", _df_dos_dias(-24.7859, -65.4116))],
+    )
+    import_service.importar_lote(
+        conn, ccte="Salta", provincia="Mendoza", localidad="Godoy Cruz",
+        expediente=None, archivos=[("c.xlsx", _df_dos_dias(-32.9314, -68.8728))],
+    )
+
+
+def test_map_todos_sin_tope_devuelve_todo(conn):
+    """Cuando entra todo, tiene que devolver TODO y decir que no truncó."""
+    _importar_tres_localidades(conn)
+    from app.api.routes.map import get_map
+    resultado = get_map(modo="todos", filtros=FiltrosQuery(), conn=conn)
+    assert resultado["truncado"] is False
+    assert resultado["total_disponible"] == 12
+    assert len(resultado["puntos"]) == 12
+    assert len({p["localidad"] for p in resultado["puntos"]}) == 3
+
+
+def test_map_todos_truncado_cubre_todas_las_localidades(conn, monkeypatch):
+    """Regresión del bug real: el SELECT terminaba en LIMIT sin ORDER BY,
+    así que devolvía las primeras filas en orden de inserción y con la base
+    de producción 5000 puntos eran exactamente 3 localidades de las 61.
+
+    Con el muestreo proporcional, aunque el tope no alcance para todos los
+    puntos, TIENE que haber al menos un punto de cada localidad."""
+    _importar_tres_localidades(conn)
+    monkeypatch.setattr("app.api.routes.map.MAX_PUNTOS_MAPA", 4)
+
+    from app.api.routes.map import get_map
+    resultado = get_map(modo="todos", filtros=FiltrosQuery(), conn=conn)
+
+    assert resultado["truncado"] is True
+    assert resultado["total_disponible"] == 12
+    assert len(resultado["puntos"]) < 12  # de verdad está muestreando
+    # el piso de 1 por localidad: ninguna se queda afuera
+    assert {p["localidad"] for p in resultado["puntos"]} == {"CABA", "Salta Capital", "Godoy Cruz"}
+
+
+def test_map_todos_con_bbox_restringe_al_viewport(conn):
+    """El frontend manda el bbox visible en cada moveend: tiene que acotar
+    en SQL antes del muestreo, no filtrar la respuesta después."""
+    _importar_tres_localidades(conn)
+    from app.api.routes.map import get_map
+
+    # CABA está en -34.60 / -58.38; Salta y Godoy Cruz quedan afuera de ese
+    # rectángulo, así que el bbox no puede devolverlas.
+    dentro = get_map(modo="todos", bbox="-34.7,-34.5,-58.5,-58.3",
+                     filtros=FiltrosQuery(), conn=conn)
+    assert len(dentro["puntos"]) == 4
+    assert {p["localidad"] for p in dentro["puntos"]} == {"CABA"}
+    assert dentro["total_disponible"] == 4  # el COUNT también respeta el bbox
+    assert dentro["truncado"] is False
+
+    afuera = get_map(modo="todos", bbox="-50,-49,-70,-69",
+                     filtros=FiltrosQuery(), conn=conn)
+    assert afuera["puntos"] == []
+    assert afuera["total_disponible"] == 0
+    assert afuera["truncado"] is False
+
+
+def test_map_bbox_malformado_devuelve_400(conn):
+    from fastapi import HTTPException
+    from app.api.routes.map import get_map
+    for bbox in ("1,2,3", "a,b,c,d", "1,2"):
+        try:
+            get_map(bbox=bbox, filtros=FiltrosQuery(), conn=conn)
+            assert False, f"bbox={bbox} debería haber lanzado HTTPException"
+        except HTTPException as e:
+            assert e.status_code == 400
+
 
 
 def test_tiempo_diario_localidad_dos_jornadas(conn):
