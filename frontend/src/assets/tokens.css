@@ -265,6 +265,9 @@ td.num {
   color: var(--surface);
   padding: var(--space-4) var(--space-6);
   font-weight: 500;
+  /* .btn también se usa en <a> y <router-link> (informes, 404): sin esto
+     heredaban el subrayado UA de los enlaces sobre fondo oscuro */
+  text-decoration: none;
 }
 
 .btn:hover {

@@ -5,8 +5,7 @@ import 'leaflet/dist/leaflet.css'
 import { mapApi } from '../services/domains'
 import { useFiltrosStore } from '../stores/filtros'
 import { useColorScaleStore } from '../stores/colorScale'
-import LoadingState from '../components/LoadingState.vue'
-import ErrorState from '../components/ErrorState.vue'
+import DataPanel from '../components/DataPanel.vue'
 
 const filtros = useFiltrosStore()
 const escala = useColorScaleStore()
@@ -163,8 +162,7 @@ function onLocalidadInput() {
       </div>
     </div>
 
-    <ErrorState v-if="error" @reintentar="cargarPuntos" />
-    <LoadingState v-else-if="loading" mensaje="Cargando puntos del mapa…" />
+    <DataPanel :loading="loading" :error="error" mensaje-cargando="Cargando puntos del mapa…" @reintentar="cargarPuntos" />
     <div ref="mapContainer" class="mapa-canvas" role="application" aria-label="Mapa de mediciones RNI"></div>
   </div>
 </template>

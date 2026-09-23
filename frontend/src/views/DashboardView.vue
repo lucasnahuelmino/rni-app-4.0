@@ -5,9 +5,7 @@ import { useFetchOnFiltros } from '../composables/useFetchOnFiltros'
 import KpiCard from '../components/KpiCard.vue'
 import CcteCard from '../components/CcteCard.vue'
 import SemaforoBadge from '../components/SemaforoBadge.vue'
-import LoadingState from '../components/LoadingState.vue'
-import ErrorState from '../components/ErrorState.vue'
-import EmptyState from '../components/EmptyState.vue'
+import DataPanel from '../components/DataPanel.vue'
 import MonthlyTrendChart from '../components/MonthlyTrendChart.vue'
 
 const { data: kpis, loading: loadingKpis, error: errorKpis, reload: reloadKpis } = useFetchOnFiltros(
@@ -39,20 +37,20 @@ const picoTexto = computed(() => {
 <template>
   <div class="dashboard">
     <section aria-labelledby="kpis-titulo">
-      <h2 id="kpis-titulo" class="sr-title">KPIs principales</h2>
-      <ErrorState v-if="errorKpis" @reintentar="reloadKpis" />
-      <LoadingState v-else-if="loadingKpis" />
-      <div v-else class="kpi-grid">
-        <KpiCard label="Registros totales" :value="kpis.registros_totales" />
-        <KpiCard label="Localidades" :value="kpis.localidades" />
-        <KpiCard label="Provincias" :value="kpis.provincias" />
-        <KpiCard label="Centros (CCTE)" :value="kpis.cctes" />
-        <KpiCard
-          label="Promedio del límite"
-          :value="kpis.promedio_pct != null ? kpis.promedio_pct.toFixed(1) : '—'"
-          unidad="%"
-        />
-      </div>
+      <h2 id="kpis-titulo" class="sr-only">KPIs principales</h2>
+      <DataPanel :loading="loadingKpis" :error="errorKpis" @reintentar="reloadKpis">
+        <div class="kpi-grid">
+          <KpiCard label="Registros totales" :value="kpis.registros_totales" />
+          <KpiCard label="Localidades" :value="kpis.localidades" />
+          <KpiCard label="Provincias" :value="kpis.provincias" />
+          <KpiCard label="Centros (CCTE)" :value="kpis.cctes" />
+          <KpiCard
+            label="Promedio del límite"
+            :value="kpis.promedio_pct != null ? kpis.promedio_pct.toFixed(1) : '—'"
+            unidad="%"
+          />
+        </div>
+      </DataPanel>
 
       <div v-if="!loadingKpis && !errorKpis && kpis?.pico_maximo" class="panel pico-maximo">
         <h3>Pico máximo registrado</h3>
@@ -66,45 +64,53 @@ const picoTexto = computed(() => {
 
     <section aria-labelledby="ccte-titulo">
       <h2 id="ccte-titulo">Mediciones por Centro de Comprobación Técnica de Emisiones</h2>
-      <ErrorState v-if="errorCcte" @reintentar="reloadCcte" />
-      <LoadingState v-else-if="loadingCcte" />
-      <div v-else class="ccte-grid">
-        <CcteCard v-for="c in ccteSummary" :key="c.ccte" :ccte="c" />
-      </div>
+      <DataPanel :loading="loadingCcte" :error="errorCcte" @reintentar="reloadCcte">
+        <div class="ccte-grid">
+          <CcteCard v-for="c in ccteSummary" :key="c.ccte" :ccte="c" />
+        </div>
+      </DataPanel>
     </section>
 
     <div class="dashboard__cols">
       <section aria-labelledby="top-titulo" class="panel">
         <h2 id="top-titulo">Top 5 localidades (máximo V/m)</h2>
-        <ErrorState v-if="errorTop" @reintentar="reloadTop" />
-        <LoadingState v-else-if="loadingTop" />
-        <EmptyState v-else-if="!topLocalidades?.length" />
-        <table v-else>
-          <thead>
-            <tr>
-              <th>Localidad</th>
-              <th>Provincia</th>
-              <th>CCTE</th>
-              <th>Máximo V/m</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="row in topLocalidades" :key="`${row.ccte}-${row.provincia}-${row.localidad}`">
-              <td>{{ row.localidad }}</td>
-              <td>{{ row.provincia }}</td>
-              <td>{{ row.ccte }}</td>
-              <td class="num">{{ row.valor?.toFixed(2) }}</td>
-            </tr>
-          </tbody>
-        </table>
+        <DataPanel
+          :loading="loadingTop"
+          :error="errorTop"
+          :empty="!topLocalidades?.length"
+          @reintentar="reloadTop"
+        >
+          <table>
+            <thead>
+              <tr>
+                <th>Localidad</th>
+                <th>Provincia</th>
+                <th>CCTE</th>
+                <th>Máximo V/m</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in topLocalidades" :key="`${row.ccte}-${row.provincia}-${row.localidad}`">
+                <td>{{ row.localidad }}</td>
+                <td>{{ row.provincia }}</td>
+                <td>{{ row.ccte }}</td>
+                <td class="num">{{ row.valor?.toFixed(2) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </DataPanel>
       </section>
 
       <section aria-labelledby="tendencia-titulo" class="panel">
         <h2 id="tendencia-titulo">Tendencia mensual</h2>
-        <ErrorState v-if="errorTendencia" @reintentar="reloadTendencia" />
-        <LoadingState v-else-if="loadingTendencia" />
-        <EmptyState v-else-if="!tendencia?.length" />
-        <MonthlyTrendChart v-else :datos="tendencia" />
+        <DataPanel
+          :loading="loadingTendencia"
+          :error="errorTendencia"
+          :empty="!tendencia?.length"
+          @reintentar="reloadTendencia"
+        >
+          <MonthlyTrendChart :datos="tendencia" />
+        </DataPanel>
       </section>
     </div>
   </div>
@@ -117,14 +123,8 @@ const picoTexto = computed(() => {
   gap: 1.75rem;
 }
 
-.sr-title {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-}
-
+/* Era una copia propia de .sr-only (tokens.css); el h2 sigue siendo el
+   target de aria-labelledby de la section. */
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));

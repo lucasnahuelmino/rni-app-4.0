@@ -2,9 +2,8 @@
 import { ref, computed } from 'vue'
 import { localitiesApi, reportsApi, tiemposApi } from '../services/domains'
 import { useFetchOnFiltros } from '../composables/useFetchOnFiltros'
-import LoadingState from '../components/LoadingState.vue'
-import ErrorState from '../components/ErrorState.vue'
 import EmptyState from '../components/EmptyState.vue'
+import DataPanel from '../components/DataPanel.vue'
 import SemaforoBadge from '../components/SemaforoBadge.vue'
 
 const { data: localidades, loading, error, reload } = useFetchOnFiltros(
@@ -101,27 +100,35 @@ const urlPdf = computed(() => {
   if (!seleccionada.value) return null
   return reportsApi.pdfUrl(seleccionada.value.ccte, seleccionada.value.provincia, seleccionada.value.localidad, 'Localidad')
 })
+
+// El panel de tiempos tiene dos tablas distintas según el tab activo, así
+// que el estado vacío (y su mensaje) también cambian con él.
+const vacioTiempos = computed(() =>
+  tabTiempo.value === 'diario' ? !tiempoDiario.value?.length : !tiempoMensual.value?.length,
+)
+const mensajeVacioTiempos = computed(() =>
+  tabTiempo.value === 'diario' ? 'Sin jornadas registradas.' : 'Sin datos mensuales.',
+)
 </script>
 
 <template>
   <div class="gestion">
     <section class="panel gestion__lista">
       <h2>Localidades</h2>
-      <ErrorState v-if="error" @reintentar="reload" />
-      <LoadingState v-else-if="loading" />
-      <EmptyState v-else-if="!localidades?.length" />
-      <ul v-else class="gestion__ul">
-        <li v-for="row in localidades" :key="`${row.ccte}-${row.localidad}`">
-          <button
-            class="gestion__item"
-            :class="{ 'gestion__item--activo': seleccionada?.localidad === row.localidad && seleccionada?.ccte === row.ccte }"
-            @click="seleccionar(row)"
-          >
-            <span>{{ row.localidad }}</span>
-            <span class="gestion__item-meta">{{ row.provincia }} · {{ row.ccte }}</span>
-          </button>
-        </li>
-      </ul>
+      <DataPanel :loading="loading" :error="error" :empty="!localidades?.length" @reintentar="reload">
+        <ul class="gestion__ul">
+          <li v-for="row in localidades" :key="`${row.ccte}-${row.localidad}`">
+            <button
+              class="gestion__item"
+              :class="{ 'gestion__item--activo': seleccionada?.localidad === row.localidad && seleccionada?.ccte === row.ccte }"
+              @click="seleccionar(row)"
+            >
+              <span>{{ row.localidad }}</span>
+              <span class="gestion__item-meta">{{ row.provincia }} · {{ row.ccte }}</span>
+            </button>
+          </li>
+        </ul>
+      </DataPanel>
     </section>
 
     <section class="panel gestion__detalle">
@@ -197,14 +204,15 @@ const urlPdf = computed(() => {
             tabindex="0"
             :aria-labelledby="tabTiempo === 'diario' ? 'tab-tiempo-diario' : 'tab-tiempo-mensual'"
           >
-            <ErrorState v-if="errorTiempo" @reintentar="cargarTiempos" />
-            <LoadingState v-else-if="loadingTiempo" mensaje="Calculando tiempo trabajado…" />
-            <template v-else>
-              <EmptyState
-                v-if="tabTiempo === 'diario' && !tiempoDiario?.length"
-                mensaje="Sin jornadas registradas."
-              />
-              <table v-else-if="tabTiempo === 'diario'">
+            <DataPanel
+              :loading="loadingTiempo"
+              :error="errorTiempo"
+              :empty="vacioTiempos"
+              mensaje-cargando="Calculando tiempo trabajado…"
+              :mensaje-vacio="mensajeVacioTiempos"
+              @reintentar="cargarTiempos"
+            >
+              <table v-if="tabTiempo === 'diario'">
                 <thead>
                   <tr><th>Fecha</th><th>Inicio</th><th>Fin</th><th>Duración</th></tr>
                 </thead>
@@ -218,11 +226,7 @@ const urlPdf = computed(() => {
                 </tbody>
               </table>
 
-              <EmptyState
-                v-if="tabTiempo === 'mensual' && !tiempoMensual?.length"
-                mensaje="Sin datos mensuales."
-              />
-              <table v-else-if="tabTiempo === 'mensual'">
+              <table v-else>
                 <thead>
                   <tr><th>Mes</th><th>Tiempo trabajado</th><th>Días con medición</th></tr>
                 </thead>
@@ -234,7 +238,7 @@ const urlPdf = computed(() => {
                   </tr>
                 </tbody>
               </table>
-            </template>
+            </DataPanel>
           </div>
         </div>
 
