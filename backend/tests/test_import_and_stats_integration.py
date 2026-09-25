@@ -349,3 +349,82 @@ def test_diagnostico_detecta_rechazados_y_coordenadas(conn):
     diag = diagnostics_service.obtener_diagnostico(conn)
     assert diag["total_registros"] == 3
     assert diag["resultados_faltantes"] == 0  # los rechazados no se insertan
+
+
+def _df_con_signo_cero_y_excedencia() -> pd.DataFrame:
+    """Un caso de cada uno de los tres que el Lote 7 separa:
+
+    -0.001  negativo -> imposible, la sonda reporta eso por debajo de su piso
+    0       cero exacto -> error del equipo, se conserva y se cuenta
+    30      119,24 % -> excede la MEP, es posible y lo trata el área técnica
+    1,5     valor normal
+    """
+    return pd.DataFrame({
+        "Resultado": ["-0.001", "0", "30", "1.5"],
+        "Fecha": ["20/03/2026"] * 4,
+        "Hora": ["10:00:00", "10:01:00", "10:02:00", "10:03:00"],
+        "Lat": [-34.6037, -34.6040, -34.6050, -34.6060],
+        "Lon": [-58.3816, -58.3820, -58.3830, -58.3840],
+        "Sonda": ["S1"] * 4,
+    })
+
+
+def test_resultado_negativo_pasa_a_absoluto_en_el_import(conn):
+    """Un campo eléctrico no puede ser negativo. Esa era exactamente la forma
+    de los 17 registros negativos que tenía la base (-0.001, CCTE Comodoro
+    Rivadavia)."""
+    out, advertencias = import_service._leer_y_normalizar(
+        _df_con_signo_cero_y_excedencia(), "x.xlsx"
+    )
+
+    assert list(out["resultado_vm"]) == [0.001, 0.0, 30.0, 1.5]
+    # El porcentaje no cambia con el signo (la fórmula eleva al cuadrado),
+    # pero igual se normaliza ANTES de calcularlo para que quede coherente.
+    assert list(out["resultado_pct"])[0] == pytest.approx(
+        import_service.resultado_pct(0.001)
+    )
+    assert any("signo negativo" in a for a in advertencias)
+
+
+def test_sanear_signo_resultados_corrige_lo_ya_cargado_y_es_idempotente(conn):
+    """El arranque sanea las filas que ya estaban en la base. No recalcula
+    nada: el cuadrado de la fórmula ya dejó el porcentaje en positivo y
+    ninguna tabla derivada guarda MIN(resultado_vm)."""
+    import_service.importar_lote(
+        conn, ccte="Córdoba", provincia="Córdoba", localidad="Cosquín",
+        expediente=None, archivos=[("a.xlsx", _df_con_signo_cero_y_excedencia())],
+    )
+    # Vuelve a dejar la base como estaba ANTES de este lote.
+    conn.execute("UPDATE mediciones SET resultado_vm = -resultado_vm WHERE resultado_vm != 0")
+    conn.commit()
+    assert conn.execute("SELECT COUNT(*) FROM mediciones WHERE resultado_vm < 0").fetchone()[0] == 3
+
+    assert measurements.sanear_signo_resultados(conn) == 3
+
+    valores = [f["resultado_vm"] for f in conn.execute(
+        "SELECT resultado_vm FROM mediciones ORDER BY id"
+    )]
+    assert valores == [0.001, 0.0, 30.0, 1.5]
+
+    # Segunda pasada: no encuentra nada y no escribe.
+    assert measurements.sanear_signo_resultados(conn) == 0
+
+
+def test_diagnostico_distingue_ceros_de_excedencias(conn):
+    """Los dos contadores nuevos no se mezclan entre sí ni con los
+    faltantes: la fila del cero NO está vacía, tiene todo menos la medición."""
+    import_service.importar_lote(
+        conn, ccte="Córdoba", provincia="Córdoba", localidad="Cosquín",
+        expediente=None, archivos=[("a.xlsx", _df_con_signo_cero_y_excedencia())],
+    )
+    diag = diagnostics_service.obtener_diagnostico(conn)
+
+    assert diag["total_registros"] == 4
+    assert diag["resultados_faltantes"] == 0
+    assert diag["resultados_en_cero"] == 1
+    assert diag["excedencias_mep"] == 1
+
+    # 30 V/m = 119,24 % del límite: por arriba de la MEP.
+    assert conn.execute(
+        "SELECT resultado_pct FROM mediciones WHERE resultado_vm = 30"
+    ).fetchone()["resultado_pct"] == pytest.approx(119.24, rel=1e-3)

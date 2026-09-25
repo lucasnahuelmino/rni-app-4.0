@@ -27,4 +27,9 @@ class DiagnosticoResponse(BaseModel):
     coordenadas_faltantes: int
     coordenadas_fuera_de_rango: int
     resultados_faltantes: int
+    # Error del equipo: la sonda no midió. Se conservan como valores reales
+    # pero se cuentan (ver services/diagnostics.py).
+    resultados_en_cero: int
+    # Excedencias de la MEP: posibles, las trata el área técnica.
+    excedencias_mep: int
     duplicados_probables: int

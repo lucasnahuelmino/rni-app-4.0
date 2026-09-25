@@ -118,6 +118,14 @@ desaparezca cambia el tamaño que Leaflet ya midió (no hace falta un
   (`#84C2F5`, `#A9E7A9`, `#89DD89`, `#D9FF00`) miden entre 1.15 y 1.91:1
   sobre blanco y con borde del mismo color casi no se recortan. La leyenda
   usa el mismo borde por la misma razón. El color sigue siendo el del dato.
+- **El rango abierto es alerta, no un escalón más.** El último tramo de la
+  escala (`≥100 %`, el único con `hasta: null`) lleva una pastilla con el
+  texto "excede la MEP" en `--risk-high`, no es simplemente el rojo más
+  fuerte: es una excedencia que después trata el área técnica en detalle.
+  Se detecta por `r.hasta == null` y no por posición en el array, así que
+  si algún día se agrega un tramo por encima no se le cuela la pastilla.
+  La regla del semáforo de la UI se respeta: nunca información solo por
+  color.
 - **Modo automático por zoom** (reemplaza al selector manual). Por debajo de
   `ZOOM_DETALLE = 7`, un punto por localidad (el de mayor `%`); desde ahí en
   adelante, todos los puntos del área visible. Motivo de lectura: a la vista

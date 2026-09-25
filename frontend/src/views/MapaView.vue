@@ -311,8 +311,20 @@ function onLocalidadInput() {
         role="list"
         aria-label="Referencia de niveles (% del límite normativo)"
       >
-        <span v-for="r in escala.rangos" :key="r.etiqueta" class="mapa-leyenda__item" role="listitem">
+        <span
+          v-for="r in escala.rangos"
+          :key="r.etiqueta"
+          class="mapa-leyenda__item"
+          :class="{ 'mapa-leyenda__item--alerta': r.hasta == null }"
+          role="listitem"
+        >
           <span class="mapa-leyenda__dot" :style="{ background: r.color }"></span>{{ r.etiqueta }}
+          <!-- El único rango abierto (hasta == null) no es "un escalón más
+               de la escala" sino una excedencia de la MEP: puntos que el
+               área técnica revisa después y en detalle. Se marca con texto
+               y no solo con color, que es la regla del semáforo de la UI
+               (ver DESIGN.md, --risk-high). -->
+          <span v-if="r.hasta == null" class="mapa-leyenda__aviso">excede la MEP</span>
         </span>
         <span class="mapa-leyenda__item" role="listitem">
           <!-- colorPorPct(null) en vez de un hex suelto: es la misma fuente
@@ -502,6 +514,22 @@ function onLocalidadInput() {
   align-items: center;
   gap: var(--space-3);
   white-space: nowrap;
+}
+
+/* El rango abierto (≥100 %) no es "el último escalón de la escala": es una
+   excedencia de la MEP, que el área técnica revisa después y en detalle. Se
+   le agrega texto propio en forma de pastilla -- --risk-high pasa WCAG AA
+   sobre --surface, y la regla del semáforo de la UI es que NUNCA haya
+   información solo por color (ver DESIGN.md). Así la leyenda no puede
+   presentar un límite normativo como si fuera simplemente "el rojo más
+   fuerte". */
+.mapa-leyenda__aviso {
+  font-weight: 600;
+  color: var(--risk-high);
+  padding: 1px var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--risk-high) 35%, transparent);
+  background: color-mix(in srgb, var(--risk-high) 7%, var(--surface));
+  border-radius: var(--radius-full);
 }
 
 .mapa-leyenda__dot {

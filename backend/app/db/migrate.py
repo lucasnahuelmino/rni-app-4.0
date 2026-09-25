@@ -77,9 +77,21 @@ def migrar(origen: Path, destino: Path) -> None:
     print(f"Coordenadas con ambos signos corregidas: {n_signo_malo}.")
 
     filas_nuevas = []
+    n_resultados_corregidos = 0
     for _, fila in df.iterrows():
         resultado_vm = fila.get("Resultado")
         resultado_vm = None if pd.isna(resultado_vm) else float(resultado_vm)
+
+        # Un campo eléctrico no puede ser negativo: la sonda reporta -0.001
+        # cuando el valor queda por debajo de su piso de medición. El signo
+        # se pierde en el cuadrado de `resultado_pct`, así que corregirlo
+        # acá no mueve ningún porcentaje ni ningún resumen -- solo el valor
+        # que se muestra. Lo mismo ya lo hacen el import y el arranque
+        # (measurements.sanear_signo_resultados); esto evita que la carga
+        # legacy lo meta a propósito.
+        if resultado_vm is not None and resultado_vm < 0:
+            resultado_vm = abs(resultado_vm)
+            n_resultados_corregidos += 1
 
         # Se recalcula con la fórmula centralizada para verificar
         # equivalencia (ver validación cruzada más abajo) en vez de copiar
@@ -113,6 +125,7 @@ def migrar(origen: Path, destino: Path) -> None:
         )
     destino_conn.commit()
     print(f"Insertadas {len(filas_nuevas)} filas en el destino.")
+    print(f"Resultados con signo negativo pasados a positivo: {n_resultados_corregidos}.")
 
     claves = {(f["ccte"], f["provincia"], f["localidad"]) for f in filas_nuevas}
     statistics_service.recalcular(destino_conn, claves)

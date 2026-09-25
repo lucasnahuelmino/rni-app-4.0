@@ -106,6 +106,25 @@ def _leer_y_normalizar(df_excel: pd.DataFrame, nombre_archivo: str) -> tuple[pd.
     else:
         out["resultado_vm"] = extract_numeric_from_text(df_excel[col_resultado])
 
+        # Un campo eléctrico no puede ser negativo: la sonda reporta -0.001
+        # cuando queda por debajo de su piso de medición, y era exactamente
+        # lo que traían los 17 registros negativos que había en la base.
+        #
+        # Se fuerza a valor absoluto ACÁ, antes de cualquier otra derivada,
+        # para que `resultado_pct` (línea de abajo) salga positivo y para que
+        # la fila tampoco se detecte como duplicada contra su hermana
+        # positiva. Lo mismo hace `measurements.sanear_signo_resultados`
+        # con las filas que ya estaban cargadas.
+        negativos = (out["resultado_vm"] < 0).fillna(False)
+        n_negativos = int(negativos.sum())
+        if n_negativos:
+            out.loc[negativos, "resultado_vm"] = out.loc[negativos, "resultado_vm"].abs()
+            advertencias.append(
+                f"{nombre_archivo}: {n_negativos} resultado(s) con signo negativo "
+                f"pasaron a valor absoluto (la sonda reporta -0.001 cuando queda "
+                f"por debajo de su rango de medición)."
+            )
+
     out["fecha_raw"] = df_excel[col_fecha].astype(str) if col_fecha else None
     out["hora_raw"] = df_excel[col_hora].astype(str) if col_hora else None
     out["lat_raw"] = df_excel[col_lat].astype(str) if col_lat else None

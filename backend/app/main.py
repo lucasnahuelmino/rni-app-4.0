@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import charts, colors, diagnostics, imports, kpis, localities, map as map_routes, reports, tiempos
 from app.db.database import get_connection, init_schema
-from app.services import statistics
+from app.services import measurements, statistics
 
 app = FastAPI(title="RNI API", version="1.0.0")
 
@@ -24,6 +24,14 @@ def on_startup() -> None:
     # base existente solo se le aplica el DDL nuevo, que usa IF NOT EXISTS y
     # por eso no escribe datos. Ver services/statistics.poblar_tablas_derivadas.
     with get_connection() as conn:
+        # Primero la sanitización: pone en positivo los resultado_vm
+        # negativos que traía la carga legacy (la sonda reporta -0.001 por
+        # debajo de su piso). Idempotente y no recalcula nada -- ver el
+        # docstring. Imprime solo si encontró algo, para que un arranque
+        # normal quede en silencio.
+        corregidas = measurements.sanear_signo_resultados(conn)
+        if corregidas:
+            print(f"[startup] resultado_vm negativos pasados a positivo: {corregidas}")
         statistics.poblar_tablas_derivadas(conn)
 
 
