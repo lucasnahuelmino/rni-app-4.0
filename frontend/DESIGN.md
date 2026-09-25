@@ -90,9 +90,22 @@ va `position:absolute; inset:0`, de modo que ningún hermano que aparezca o
 desaparezca cambia el tamaño que Leaflet ya midió (no hace falta un
 `invalidateSize` por cada cambio de estado).
 
-- **Sin teselas.** No hay `L.tileLayer`: el fondo queda blanco puro para que
-  los colores del semáforo compitan lo menos posible. Por lo mismo no hay
-  atribución que declarar (`attributionControl: false`).
+- **Teselas políticas, sin color.** Hay `L.tileLayer` con CARTO Positron
+  (`light_all`, datos de OpenStreetMap): es un mapa político, no físico — no
+  trae relieve ni usos de suelo, solo bordes de país y de provincia,
+  ciudades y nombres. Eso es lo mínimo que hace falta para orientarse; sin
+  ninguna capa los puntos flotaban sobre un fondo liso y no había forma de
+  saber en qué parte del país se estaba mirando.
+- **Todo el mapa en blanco y negro.** Sobre `.leaflet-tile-pane` va
+  `grayscale(1)`, así el celeste del agua y cualquier resto de color
+  desaparecen y el mapa queda en escala de grises. El filtro va en el pane
+  de teselas y **no** en el contenedor: aplicado ahí descolorearía también
+  los marcadores, que es justo lo que no se quiere. Si no hay red, no
+  cargan las teselas y queda el fondo `--surface` de abajo: el mapa sigue
+  siendo usable igual.
+- **Atribución obligatoria.** OpenStreetMap y CARTO exigen declararla, así
+  que `attributionControl` está encendido (antes estaba apagado, cuando no
+  había capa alguna que atribuir).
 - **Borde de los marcadores.** `fillColor` = color del dato, pero el borde
   va a `--ink` al 55% y no al color del tramo: cuatro de los diez rangos
   (`#84C2F5`, `#A9E7A9`, `#89DD89`, `#D9FF00`) miden entre 1.15 y 1.91:1

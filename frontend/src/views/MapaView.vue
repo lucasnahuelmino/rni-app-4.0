@@ -189,11 +189,32 @@ onMounted(async () => {
   prepararPopup()
 
   mapa = L.map(mapContainer.value, {
-    // Sin capa de teselas: el fondo queda en blanco puro y los colores del
-    // semáforo no compiten con el relieve ni con el etiquetado. Por lo mismo
-    // no hay atribución que declarar.
-    attributionControl: false,
+    // Vuelven las teselas, pero en estilo POLÍTICO y sin color: CARTO
+    // Positron (datos de OpenStreetMap) no trae relieve ni usos de suelo,
+    // solo bordes de país y de provincia, ciudades y nombres en gris. Es lo
+    // mínimo que hace falta para orientarse, que era lo que faltaba cuando
+    // acá no había ninguna capa: los puntos flotaban sobre un fondo liso y
+    // no había forma de saber en qué parte del país se estaba mirando.
+    //
+    // El gris definitivo lo pone el CSS con `grayscale(1)` sobre el tile
+    // pane (ver `.mapa-canvas .leaflet-tile-pane`), así el mapa queda en
+    // blanco y negro y los colores del semáforo siguen siendo la única
+    // información cromática de la pantalla.
+    //
+    // La atribución es obligatoria: OpenStreetMap y CARTO exigen
+    // declararla, así que el control vuelve a estar encendido.
+    attributionControl: true,
   }).setView([-38.4, -63.6], 4) // centro aproximado de Argentina
+
+  // Sin conexión no cargan las teselas y queda el fondo `--surface` que ya
+  // tiene el contenedor: el mapa se sigue pudiendo usar igual.
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', {
+    subdomains: 'abcd',
+    maxZoom: 19,
+    attribution:
+      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> ' +
+      '&copy; <a href="https://carto.com/attributions">CARTO</a>',
+  }).addTo(mapa)
 
   capaMarcadores = L.layerGroup().addTo(mapa)
   zoomActual.value = mapa.getZoom()
@@ -396,6 +417,30 @@ function onLocalidadInput() {
 .mapa-canvas.leaflet-container {
   background: var(--surface);
   font-family: var(--font-ui);
+}
+
+/* Positron ya viene casi en gris, pero el agua va en celeste y trae algún
+   resto de color: grayscale(1) lo deja estrictamente en blanco y negro,
+   que es lo que se pidió (mapa político, "sin colorear").
+   Va sobre el TILE PANE y no sobre el contenedor: el contenedor también
+   contiene los marcadores, y descolorearlos arruinaría el semáforo. */
+.mapa-canvas .leaflet-tile-pane {
+  filter: grayscale(1);
+}
+
+/* La atribución es obligatoria (OpenStreetMap + CARTO exigen declararla),
+   así que hay que reestilurarla: Leaflet la trae con fondo blanco opaco,
+   borde y tipografía chiquita sin relación con el sistema. */
+.mapa-canvas .leaflet-control-attribution {
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  color: var(--ink-soft);
+  font-size: var(--fs-2xs);
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.mapa-canvas .leaflet-control-attribution a {
+  color: var(--signal-deep);
 }
 
 .mapa-canvas .leaflet-bar {
