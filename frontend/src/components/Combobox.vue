@@ -1,6 +1,8 @@
 <script setup>
 import { computed, ref, useId, watch } from 'vue'
 
+import { normalizar } from '../texto.js'
+
 /**
  * Combobox con búsqueda (tipo "escribí y filtrá"), para los campos que antes
  * se cargaban a mano: Provincia y CCTE.
@@ -68,22 +70,7 @@ watch(
   },
 )
 
-/** Minúsculas, sin acentos, sin espacios sobrantes.
- *
- *  `NFD` descompone "á" en "a" + el acento como carácter aparte (U+0300 a
- *  U+036F) y `\p{M}` con el flag `u` recorta cualquier carácter combinante,
- *  que en español es justo el acento. Así "rio negro" encuentra "Río Negro"
- *  y "cordoba" encuentra "Córdoba".
- *
- *  Se usa `\p{M}` y no el rango U+0300-U+036F escrito a mano porque esos
- *  caracteres combinantes van invisibles en el fuente y dependen de con qué
- *  codificación se edite el archivo. */
-const normalizar = (s) =>
-  (s ?? '')
-    .normalize('NFD')
-    .replace(/\p{M}/gu, '')
-    .toLowerCase()
-    .trim()
+/** Minúsculas, sin acentos, sin espacios sobrantes: ver src/texto.js. */
 
 const coincidencias = computed(() => {
   const q = normalizar(texto.value)

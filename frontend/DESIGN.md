@@ -213,6 +213,38 @@ a los tres `<input type="text">` que había (Carga, Gestión y el filtro global)
 - El menú no usa sombra: no hay `--shadow-*` en el sistema a propósito, se
   separa con el mismo borde que un input.
 
+### `texto.js` — normalización compartida
+`normalizar()` es **la única** implementación de "ignorar mayúsculas y
+acentos", y la usan las dos cosas de la app que se buscan tipeando: el
+`Combobox` y el buscador de Gestión. Está en un solo archivo porque lo que
+no puede pasar es que los dos divergan — si el Combobox aceptara `cordoba`
+y el buscador no, el mismo texto daría distinto según dónde se escriba.
+
+- `NFD` + `/\p{M}/gu`: `NFD` descompone `á` en `a` + el acento como
+  carácter aparte y `\p{M}` recorta cualquier combinante. Se usa `\p{M}`
+  con el flag `u` y **no** el rango `U+0300-U+036F` escrito a mano porque
+  esos caracteres van invisibles en el fuente y dependen de la codificación
+  con que se edite el archivo (y en JSON `\u0300` se decodifica al carácter,
+  no al escape).
+- Baja `null`/`undefined` a `''`, así se puede aplicar directo a un campo
+  opcional como `expedientes` sin `?.` en cada llamada.
+
+### Buscador de Gestión (`GestionLista.vue`)
+Filtra las 61 localidades por **localidad, expediente o provincia** — los
+tres campos con los que se reconoce una medición.
+
+- **Filtra en cliente**, no arma query param: son 61 filas ya en memoria, y
+  así tipear responde sin ida y vuelta y sin pisar la caché que comparte
+  `useFetchOnFiltros` con el resto de la app.
+- Aparece solo cuando hay datos cargados; mientras no haya filas,
+  `DataPanel` muestra su estado vacío y un campo que no filtra nada es ruido.
+- Sin coincidencias dice *"Ninguna localidad coincide con «…»"* en vez del
+  estado vacío genérico, porque hay datos y el filtro es lo que no matchea.
+- El conteo va con `role="status"`: anuncia el cambio a un lector de
+  pantalla sin robarle el foco a quien está tipeando.
+- **El CCTE no está incluido**: no estaba en lo pedido. Es una línea más en
+  el mismo arreglo de campos si hace falta.
+
 ## Accesibilidad
 - Los controles interactivos son `<button>`/`<input>` reales, nunca
   `<span @click>`: no hay nada clickeable que no sea alcanzable con Tab.
