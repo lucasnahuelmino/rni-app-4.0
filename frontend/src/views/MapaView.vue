@@ -189,31 +189,30 @@ onMounted(async () => {
   prepararPopup()
 
   mapa = L.map(mapContainer.value, {
-    // Vuelven las teselas, pero en estilo POLÍTICO y sin color: CARTO
-    // Positron (datos de OpenStreetMap) no trae relieve ni usos de suelo,
-    // solo bordes de país y de provincia, ciudades y nombres en gris. Es lo
-    // mínimo que hace falta para orientarse, que era lo que faltaba cuando
-    // acá no había ninguna capa: los puntos flotaban sobre un fondo liso y
-    // no había forma de saber en qué parte del país se estaba mirando.
+    // Teselas de OpenStreetMap. Es un mapa POLÍTICO: no trae alturas ni
+    // sombreado (lo que pide el usuario es "sin relieve"), y el `grayscale(1)`
+    // del CSS sobre el tile pane lo deja en blanco y negro, así los colores
+    // del semáforo siguen siendo la única información cromática de la
+    // pantalla.
     //
-    // El gris definitivo lo pone el CSS con `grayscale(1)` sobre el tile
-    // pane (ver `.mapa-canvas .leaflet-tile-pane`), así el mapa queda en
-    // blanco y negro y los colores del semáforo siguen siendo la única
-    // información cromática de la pantalla.
-    //
-    // La atribución es obligatoria: OpenStreetMap y CARTO exigen
-    // declararla, así que el control vuelve a estar encendido.
+    // La atribución es obligatoria: OpenStreetMap la exige, así que el
+    // control vuelve a estar encendido.
     attributionControl: true,
   }).setView([-38.4, -63.6], 4) // centro aproximado de Argentina
 
+  // Se probó primero CARTO Positron, que es más limpio (solo bordes y
+  // etiquetas, sin calles), pero desde que pasó a pedir API key devuelve un
+  // placeholder con el texto "API key required" dibujado DENTRO de la tesela
+  // -- ni siquiera tira un HTTP error, así que no se detecta de otro modo que
+  // mirando los bytes. El servidor de OpenStreetMap no pide clave y el
+  // pedido era justamente "los mapas de OpenStreetMap".
+  //
   // Sin conexión no cargan las teselas y queda el fondo `--surface` que ya
   // tiene el contenedor: el mapa se sigue pudiendo usar igual.
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', {
-    subdomains: 'abcd',
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
     attribution:
-      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> ' +
-      '&copy; <a href="https://carto.com/attributions">CARTO</a>',
+      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
   }).addTo(mapa)
 
   capaMarcadores = L.layerGroup().addTo(mapa)
@@ -419,9 +418,9 @@ function onLocalidadInput() {
   font-family: var(--font-ui);
 }
 
-/* Positron ya viene casi en gris, pero el agua va en celeste y trae algún
-   resto de color: grayscale(1) lo deja estrictamente en blanco y negro,
-   que es lo que se pidió (mapa político, "sin colorear").
+/* OpenStreetMap viene bastante coloreado: agua en celeste, rutas en amarillo
+   y naranja, usos de suelo en verde. grayscale(1) lo deja estrictamente en
+   blanco y negro, que es lo que se pidió (mapa político, "sin colorear").
    Va sobre el TILE PANE y no sobre el contenedor: el contenedor también
    contiene los marcadores, y descolorearlos arruinaría el semáforo. */
 .mapa-canvas .leaflet-tile-pane {

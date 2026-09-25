@@ -90,21 +90,25 @@ va `position:absolute; inset:0`, de modo que ningún hermano que aparezca o
 desaparezca cambia el tamaño que Leaflet ya midió (no hace falta un
 `invalidateSize` por cada cambio de estado).
 
-- **Teselas políticas, sin color.** Hay `L.tileLayer` con CARTO Positron
-  (`light_all`, datos de OpenStreetMap): es un mapa político, no físico — no
-  trae relieve ni usos de suelo, solo bordes de país y de provincia,
-  ciudades y nombres. Eso es lo mínimo que hace falta para orientarse; sin
-  ninguna capa los puntos flotaban sobre un fondo liso y no había forma de
-  saber en qué parte del país se estaba mirando.
+- **Teselas de OpenStreetMap, en blanco y negro.** Hay `L.tileLayer` apuntando
+  a `tile.openstreetmap.org`: es un mapa político, no físico — no trae
+  alturas ni sombreado, solo calles, bordes de país y de provincia, ciudades
+  y nombres. Sin ninguna capa los puntos flotaban sobre un fondo liso y no
+  había forma de saber en qué parte del país se estaba mirando.
 - **Todo el mapa en blanco y negro.** Sobre `.leaflet-tile-pane` va
-  `grayscale(1)`, así el celeste del agua y cualquier resto de color
+  `grayscale(1)`, así el celeste del agua y los colores de las rutas
   desaparecen y el mapa queda en escala de grises. El filtro va en el pane
-  de teselas y **no** en el contenedor: aplicado ahí descolorearía también
-  los marcadores, que es justo lo que no se quiere. Si no hay red, no
-  cargan las teselas y queda el fondo `--surface` de abajo: el mapa sigue
+  y **no** en el contenedor: aplicado ahí descolorearía también los
+  marcadores, que es justo lo que no se quiere. Si no hay red, no cargan
+  las teselas y queda el fondo `--surface` de abajo: el mapa sigue
   siendo usable igual.
-- **Atribución obligatoria.** OpenStreetMap y CARTO exigen declararla, así
-  que `attributionControl` está encendido (antes estaba apagado, cuando no
+- **Sin API key.** Se probó primero CARTO Positron (más limpio: solo bordes
+  y etiquetas), pero pasó a exigir una clave y en vez de tirar un HTTP error
+  devuelve un placeholder con el texto "API key required" dibujado dentro de
+  la tesela, que es indetectable salvo mirando los bytes. El servidor de
+  OpenStreetMap no pide clave.
+- **Atribución obligatoria.** OpenStreetMap exige declararla, así que
+  `attributionControl` está encendido (antes estaba apagado, cuando no
   había capa alguna que atribuir).
 - **Borde de los marcadores.** `fillColor` = color del dato, pero el borde
   va a `--ink` al 55% y no al color del tramo: cuatro de los diez rangos
