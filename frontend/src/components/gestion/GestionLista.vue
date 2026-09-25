@@ -2,6 +2,7 @@
 import { computed, ref, useId } from 'vue'
 
 import DataPanel from '../DataPanel.vue'
+import { fmtPct, fmtVm } from '../../format'
 import { normalizar } from '../../texto.js'
 
 /**
@@ -85,8 +86,25 @@ const contador = computed(() => {
             }"
             @click="emit('seleccionar', row)"
           >
-            <span>{{ row.localidad }}</span>
+            <span class="gestion__item-nombre">{{ row.localidad }}</span>
             <span class="gestion__item-meta">{{ row.provincia }} · {{ row.ccte }}</span>
+            <!-- Los números con los que se reconoce una localidad: sus
+                 máximos y cuántos puntos tiene. fmtVm/fmtPct son los mismos
+                 formateadores del resto de la app -- decimales exactos de la
+                 base, sin redondear (DESIGN.md, "Decimales"). -->
+            <span class="gestion__item-datos">
+              <span>Máx {{ fmtVm(row.resultado_max_vm) }} V/m</span>
+              <span>{{ fmtPct(row.resultado_max_pct) }} %</span>
+              <span :title="`${row.mediciones} mediciones`">{{ row.mediciones }} pts</span>
+            </span>
+            <!-- El expediente es largo y a veces hay más de uno: en la
+                 columna angosta se corta con puntos suspensivos y el texto
+                 completo queda en el tooltip del navegador. -->
+            <span
+              v-if="row.expedientes"
+              class="gestion__item-exp"
+              :title="row.expedientes"
+            >{{ row.expedientes }}</span>
           </button>
         </li>
       </ul>
@@ -159,8 +177,30 @@ const contador = computed(() => {
   background: var(--paper);
 }
 
+.gestion__item-nombre {
+  font-weight: 500;
+}
+
 .gestion__item-meta {
   font-size: 0.75rem;
   color: var(--ink-soft);
+}
+
+.gestion__item-datos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.6rem;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* El expediente puede ocupar dos líneas de la pantalla: se corta en una y
+   el texto entero vive en el tooltip. */
+.gestion__item-exp {
+  font-size: 0.6875rem;
+  color: var(--ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>

@@ -216,7 +216,7 @@ a los tres `<input type="text">` que había (Carga, Gestión y el filtro global)
 ### `texto.js` — normalización compartida
 `normalizar()` es **la única** implementación de "ignorar mayúsculas y
 acentos", y la usan las dos cosas de la app que se buscan tipeando: el
-`Combobox` y el buscador de Gestión. Está en un solo archivo porque lo que
+`Combobox` y el buscador del Centro operativo. Está en un solo archivo porque lo que
 no puede pasar es que los dos divergan — si el Combobox aceptara `cordoba`
 y el buscador no, el mismo texto daría distinto según dónde se escriba.
 
@@ -229,7 +229,7 @@ y el buscador no, el mismo texto daría distinto según dónde se escriba.
 - Baja `null`/`undefined` a `''`, así se puede aplicar directo a un campo
   opcional como `expedientes` sin `?.` en cada llamada.
 
-### Buscador de Gestión (`GestionLista.vue`)
+### Buscador del Centro operativo (`GestionLista.vue`)
 Filtra las 61 localidades por **localidad, expediente o provincia** — los
 tres campos con los que se reconoce una medición.
 
@@ -245,14 +245,72 @@ tres campos con los que se reconoce una medición.
 - **El CCTE no está incluido**: no estaba en lo pedido. Es una línea más en
   el mismo arreglo de campos si hace falta.
 
+## Centro operativo (`/gestion`)
+Lo que eran dos secciones —**Gestión** y **Gráficos**— es ahora una sola.
+`/graficos` se eliminó de la ruta y del menú, y el resumen, la tendencia y
+los tiempos se mudaron al panel derecho de `/gestion`.
+
+### Selector de CCTE (`components/centro/CcteSelector.vue`)
+- **Botones, nunca desplegable.** Ocupan todo el ancho de la vista
+  (`grid-column: 1/-1`) porque es una elección sobre el centro entero, no
+  sobre la lista ni sobre el detalle.
+- **Escribe en `filtros.ccte`**, el mismo estado que los chips *CCTE* del
+  panel **Filtros** de la barra global. No hay estado paralelo: un cambio
+  en los botones se refleja en los chips, y `useFetchOnFiltros` refresca
+  lista, resumen, tendencia y tiempos de una sola vez. Es lo que evita que
+  dos controles de CCTE se contradigan.
+- **"General"** es el botón activo cuando `filtros.ccte.length === 0`; un
+  CCTE está activo solo cuando es **el único** elegido.
+- **Selección única ⇒ `<fieldset>` + radios nativos** con apariencia de
+  botón (ver *Accesibilidad*): rol, exclusividad y flechas del teclado los
+  trae el navegador, solo se le pinta el estilo.
+- Los chips son multi-selección y los botones no. Con dos chips puestos
+  **ningún botón se resalta** —ninguno es "el único"— y un `role="status"`
+  lo explica arriba. Resaltar uno habría sido mentir sobre el estado real;
+  la salida es apretar cualquiera, que colapsa la selección a uno solo.
+- **Elegir un CCTE cierra el detalle local**: `GestionView` observa
+  `filtros.ccte` y vacía `seleccionada`, porque la localidad que estaba
+  abierta puede ni siquiera pertenecerle al centro nuevo. El foco **no**
+  se mueve: queda en el radio que se apretó, que es donde sigue trabajando
+  quien lo usó.
+
+### Los dos estados del panel derecho
+- **Sin localidad elegida** → `CentroResumen.vue`: resumen por CCTE,
+  tendencia mensual, tiempo trabajado **mensual** y **diario**, y Top 10
+  con métrica elegible.
+- **Con localidad elegida** → `GestionDetalle` + tiempos + editor +
+  eliminar, con un botón *← Volver al centro* arriba de todo.
+- Guardar, eliminar y volver comparten una sola función `irAlCentro()`,
+  porque son tres motivos distintos para el mismo estado final.
+- Cada bloque agrega el sufijo `— Córdoba` cuando hay un solo CCTE: el
+  selector está arriba y las tablas abajo, y sin ese rótulo hay que
+  recordar en qué centro se está mirando.
+
+### Títulos y tiempos
+- El desglose **diario** y el **mensual** son dos alturas del mismo
+  criterio: la suma de las filas diarias da exactamente el total mensual
+  (201 339 s en la base real). Si un día no cuadra, el fallo está en
+  `desglose_diario`, no en la vista.
+- El diario va con su propio scroll (`max-height: 60vh`): en la vista
+  General son 241 jornadas y sin scroll taparía lo que hay abajo.
+- `/monthly-trend` **ahora acepta filtros**. Sin filtros sigue leyendo la
+  tabla precalculada `resumen_mensual`; con filtro agrupa `mediciones` en
+  el momento, porque esa tabla es de una sola dimensión (el mes). Antes
+  no tenía ningún parámetro, así que con el CCTE elegido la gráfica seguía
+  mostrando el total del país.
+
 ## Accesibilidad
 - Los controles interactivos son `<button>`/`<input>` reales, nunca
   `<span @click>`: no hay nada clickeable que no sea alcanzable con Tab.
-- Un selector exclusivo de opciones (si vuelve a hacer falta) es un
-  `<fieldset>` con `<legend class="sr-only">` y radios nativos, no un
-  `div[role=radiogroup]` con botones y `aria-pressed`. Hoy no queda ningún
-  en la app: el de modos del mapa se reemplazó por el modo automático por
-  zoom, y los tabs de Gestión/Tiempos son `<button>` con roving tabindex.
+- Un selector exclusivo de opciones es un `<fieldset>` con
+  `<legend class="sr-only">` y radios nativos, no un `div[role=radiogroup]`
+  con botones y `aria-pressed`. El de CCTE del Centro operativo es el único
+  hoy, y se le pinta la apariencia de botón **sin tocar el control**: el
+  radio sigue siendo el que maneja exclusividad, foco y flechas, y no se le
+  pone `display:none` (con eso saldría del árbol accesible y el grupo
+  dejaría de ser un grupo de radios). El de modos del mapa desapareció con
+  el modo automático por zoom, y los tabs de Gestión/Tiempos son `<button>`
+  con roving tabindex.
 - `aria-label` sobre un `<div>` sin `role` **no** se expone como nombre
   accesible: los contenedores con label llevan `role="list"`.
 - `.sr-only` (en `tokens.css`) oculta visualmente sin sacar el elemento del

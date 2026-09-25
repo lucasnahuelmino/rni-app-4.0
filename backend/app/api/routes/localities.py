@@ -72,19 +72,39 @@ def delete_locality(localidad: str, ccte: str, provincia: str, conn=Depends(get_
 @router.get("/top-localities")
 def get_top_localities(metric: str = "resultado_max_vm",
                         limit: int = Query(5, ge=1, le=500),
+                        filtros: FiltrosQuery = Depends(filtros_query),
                         conn=Depends(get_db)):
+    """Ranking de localidades, acotable a un CCTE o provincia.
+
+    Antes no aceptaba ningún filtro: devuélveme el top de todo, siempre.
+    Ahora baja por `listar_resumen_localidad`, la misma puerta que usa
+    `/localities`, en vez de armar un segundo WHERE que pudiera divergir
+    del primero; el orden por la columna elegida se hace en Python sobre
+    el resultado. Son 61 filas como máximo, así que el costo es nulo.
+
+    El filtro de Año NO aplica acá: `resumen_localidad` es un resumen
+    total por localidad y no tiene columna de año. No se puede cumplir y
+    en vez de filtrarlo en silencio (que daría un top que no es el que
+    pidió nadie) queda documentado.
+    """
     columnas_validas = {
         "resultado_max_vm", "resultado_max_pct", "resultado_prom_pct", "mediciones",
     }
     if metric not in columnas_validas:
         raise HTTPException(status_code=400, detail=f"metric debe ser una de {columnas_validas}")
 
-    # `metric` se interpola en el SQL porque SQLite no permite parametrizar
-    # nombres de columna con placeholders -- es seguro porque arriba se
-    # validó contra una whitelist cerrada, nunca contra input libre.
-    cur = conn.execute(
-        f"SELECT ccte, provincia, localidad, {metric} AS valor FROM resumen_localidad "
-        f"WHERE {metric} IS NOT NULL ORDER BY {metric} DESC LIMIT ?",
-        (limit,),
+    filas = resumen_repo.listar_resumen_localidad(
+        conn, ccte=filtros.ccte, provincia=filtros.provincia,
     )
-    return [{"metric": metric, **dict(r)} for r in cur.fetchall()]
+    filas = [f for f in filas if f.get(metric) is not None]
+    filas.sort(key=lambda f: f[metric], reverse=True)
+    return [
+        {
+            "metric": metric,
+            "ccte": f["ccte"],
+            "provincia": f["provincia"],
+            "localidad": f["localidad"],
+            "valor": f[metric],
+        }
+        for f in filas[:limit]
+    ]

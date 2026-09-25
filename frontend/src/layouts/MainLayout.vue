@@ -11,8 +11,9 @@ const route = useRoute()
 const nav = [
   { to: '/', label: 'Inicio', icon: '◆' },
   { to: '/resumen', label: 'Resumen', icon: '▤' },
-  { to: '/graficos', label: 'Gráficos', icon: '▲' },
-  { to: '/gestion', label: 'Gestión', icon: '⚙' },
+  // Gráficos dejó de existir como sección: pasó a ser parte del Centro
+  // operativo (antes "Gestión"), junto con la lista y el detalle.
+  { to: '/gestion', label: 'Centro operativo', icon: '⚙' },
   { to: '/mapa', label: 'Mapa', icon: '⬢' },
   { to: '/diagnostico', label: 'Diagnóstico', icon: '✓' },
   { to: '/carga', label: 'Carga de Excel', icon: '↑' },

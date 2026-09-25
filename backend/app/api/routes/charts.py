@@ -35,6 +35,36 @@ def get_histogram(campo: str = "resultado_pct", bins: int = Query(20, ge=1, le=5
 
 
 @router.get("/monthly-trend")
-def get_monthly_trend(conn=Depends(get_db)):
-    cur = conn.execute("SELECT mes, mediciones FROM resumen_mensual ORDER BY mes")
+def get_monthly_trend(filtros: FiltrosQuery = Depends(filtros_query), conn=Depends(get_db)):
+    """Mediciones por mes.
+
+    Sin filtros lee `resumen_mensual`, que se recalcula en cada import: es la
+    misma tabla que usa el resto del sistema y cuesta ~1 ms.
+
+    Con filtros (CCTE / provincia / año) hay que agrupar `mediciones` en el
+    momento, porque `resumen_mensual` no guarda ese desglose -- es una tabla
+    de una sola dimensión (el mes). El criterio es el mismo que usa
+    `recalcular_resumen_mensual` (`substr(fecha_hora, 1, 7) <> ''`), así que
+    las dos rutas cuentan igual: sin filtros devuelven exactamente los mismos
+    números, que es lo que verifica el test de esta ruta.
+
+    Ojo con el `<> ''`: en SQL `NULL <> ''` es NULL, no TRUE, así que las filas
+    con `fecha_hora` nula quedan afuera solas -- igual que en el precalculado,
+    donde `substr(NULL) = ?` tampoco se cumple. Sin eso, un mes nulo aparecería
+    como un grupo fantasma y la suma con filtro no daría la del resumen.
+    """
+    if not (filtros.ccte or filtros.provincia or filtros.anio):
+        cur = conn.execute("SELECT mes, mediciones FROM resumen_mensual ORDER BY mes")
+        return [dict(r) for r in cur.fetchall()]
+
+    where, params = construir_where(filtros.ccte, filtros.provincia, filtros.anio)
+    # `where` viene con su "WHERE " adelante (o vacío), por eso el separador
+    # cambia: con filtro va "AND", sin filtro hay que poner "WHERE".
+    separador = " AND " if where else "WHERE "
+    cur = conn.execute(
+        f"""SELECT substr(fecha_hora, 1, 7) AS mes, COUNT(*) AS mediciones
+            FROM mediciones {where}{separador}substr(fecha_hora, 1, 7) <> ''
+            GROUP BY mes ORDER BY mes""",
+        params,
+    )
     return [dict(r) for r in cur.fetchall()]

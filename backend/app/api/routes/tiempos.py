@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from app.core.deps import get_db
 from app.schemas.filters import FiltrosQuery, filtros_query
@@ -14,6 +14,21 @@ def get_tiempo_diario(ccte: str, provincia: str, localidad: str, conn=Depends(ge
     """Desglose día por día (fecha, inicio, fin, duración) de UNA localidad
     -- usado en Gestión."""
     return tiempos_service.tiempo_diario_localidad(conn, ccte, provincia, localidad)
+
+
+@router.get("/tiempos/diario-ccte")
+def get_tiempo_diario_ccte(ccte: list[str] | None = Query(None), conn=Depends(get_db)):
+    """Desglose día por día de UN centro de trabajo, o de todos juntos.
+
+    Existe aparte de `/tiempos/diario` porque ese exige provincia y
+    localidad (es el detalle de UNA localidad) y este solo el ccte, que
+    además es opcional: sin él devuelve todos los centros juntos, que es
+    lo que pide la vista General. Acepta el parámetro repetido
+    (`?ccte=A&ccte=B`) como el resto de la API, por el mismo motivo: el
+    filtro de CCTE es multi-select. El mensual no necesita ruta nueva,
+    `/tiempos/mensual?ccte=...` ya la tenía (y sin parámetro ya devolvía
+    el global)."""
+    return tiempos_service.tiempo_diario_ccte(conn, ccte)
 
 
 @router.get("/tiempos/mensual")

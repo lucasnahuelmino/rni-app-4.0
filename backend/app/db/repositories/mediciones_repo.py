@@ -145,23 +145,42 @@ def query_filtrada(conn: sqlite3.Connection, ccte: Iterable[str] | None = None,
     return [dict(r) for r in cur.fetchall()]
 
 
+def _a_lista(valor: Any) -> list[Any]:
+    """Un valor suelto o varios -> lista, para los IN () de `construir_where`.
+
+    Sin esto, `list("Córdoba")` da `['C', 'ó', 'r', 'd', 'o', 'b', 'a']`: la
+    query queda `ccte IN ('C','ó',...)`, no matchea ninguna fila y el
+    endpoint devuelve una lista VACÍA sin fallar. Es el peor tipo de bug que
+    puede dejar acá un `list()` a secas, porque nadie se entera -- el dato no
+    aparece y parece que no había datos.
+
+    Un número solo (un `anio=2025`) entra por el mismo camino: antes tiraba
+    `TypeError: 'int' object is not iterable`, que al menos explotaba.
+    """
+    if valor is None:
+        return []
+    if isinstance(valor, (str, int, float)):
+        return [valor]
+    return list(valor)
+
+
 def construir_where(ccte, provincia, anio, localidad=None) -> tuple[str, list[Any]]:
     condiciones = []
     params: list[Any] = []
     if ccte:
-        ccte = list(ccte)
+        ccte = _a_lista(ccte)
         condiciones.append(f"ccte IN ({','.join('?' for _ in ccte)})")
         params += ccte
     if provincia:
-        provincia = list(provincia)
+        provincia = _a_lista(provincia)
         condiciones.append(f"provincia IN ({','.join('?' for _ in provincia)})")
         params += provincia
     if anio:
-        anio = list(anio)
+        anio = _a_lista(anio)
         condiciones.append(f"anio IN ({','.join('?' for _ in anio)})")
         params += anio
     if localidad:
-        localidad = list(localidad)
+        localidad = _a_lista(localidad)
         condiciones.append(f"localidad IN ({','.join('?' for _ in localidad)})")
         params += localidad
     where = ("WHERE " + " AND ".join(condiciones)) if condiciones else ""
