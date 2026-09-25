@@ -1,6 +1,9 @@
 <script setup>
 import { ref } from 'vue'
 import { localitiesApi } from '../../services/domains'
+import { CCTE_FIJOS } from '../../ccte'
+import { PROVINCIAS } from '../../provincias'
+import Combobox from '../Combobox.vue'
 
 /**
  * Formulario de edición de metadata (CCTE / Provincia / Localidad /
@@ -53,14 +56,20 @@ async function guardar() {
       Editar metadata
     </button>
     <form v-else class="gestion__form" @submit.prevent="guardar">
-      <label>
-        CCTE
-        <input v-model="form.ccte" type="text" />
-      </label>
-      <label>
-        Provincia
-        <input v-model="form.provincia" type="text" />
-      </label>
+      <Combobox
+        v-model="form.ccte"
+        :opciones="CCTE_FIJOS"
+        label="CCTE"
+        placeholder="Escribí para buscar…"
+        required
+      />
+      <Combobox
+        v-model="form.provincia"
+        :opciones="PROVINCIAS"
+        label="Provincia"
+        placeholder="Escribí para buscar…"
+        required
+      />
       <label>
         Localidad
         <input v-model="form.localidad" type="text" />

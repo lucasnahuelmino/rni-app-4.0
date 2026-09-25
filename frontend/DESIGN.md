@@ -175,6 +175,44 @@ La contraparte en Python es `app/utils/formato.py`, que usa el mismo
 criterio para los informes Word/PDF. Si cambian los decimales, cambien en
 los dos lados.
 
+## Catálogos (Provincia y CCTE)
+Dos archivos, uno por catálogo, y **todo lo que pida o muestre un valor de
+esos campos lee de ahí**:
+
+| Archivo | Qué define | Cuándo se toca |
+|---|---|---|
+| `src/provincias.js` | `PROVINCIAS`, 23 + CABA | Si entra una provincia nueva al país del sistema |
+| `src/ccte.js` | `CCTE_FIJOS`, los 7 | Nunca sin cambiar `app/core/config.py` del backend |
+
+`constants.js` se borró: solo contenía el CCTE. El backend tiene su propia
+lista en `config.py` y **manda**; la del frontend tiene que coincidir con ella.
+
+Por qué son catálogo cerrado y no texto libre: un error de tipeo **no falla**.
+Entra igual a la base y a partir de ahí hay dos "Córdoba" en Resumen, en el KPI
+"Provincias" y en el mapa, y ningún conteo vuelve a dar lo mismo. Hoy la base
+está limpia —10 provincias y 5 CCTE, todas bien escritas— y el catálogo es lo
+que la mantiene así.
+
+### `Combobox.vue`
+Campo con búsqueda (`role="combobox"` + `aria-expanded` + `aria-controls` +
+`aria-activedescendant` sobre un `listbox`), reemplaza al `<select>` de CCTE y
+a los tres `<input type="text">` que había (Carga, Gestión y el filtro global).
+
+- **La búsqueda ignora mayúsculas y acentos**: `sant` → *Santiago del Estero*,
+  `cordoba` → *Córdoba*, `rio` → *Río Negro*. `NFD` + `\p{M}`.
+- **Al perder el foco, lo escrito se resuelve solo**: si identifica a una sola
+  opción se adopta (escribir el nombre completo a mano tiene que servir, y de
+  paso lo normaliza); si no, se revierte al último valor elegido. Así el campo
+  nunca muestra algo que no esté elegido y el `required` nativo alcanza.
+- **Nada se resalta solo al tipear** (`activo` arranca en -1). Con la primera
+  coincidencia marcada, `sant` + Enter habría confirmado *Santa Cruz* sin que
+  nadie lo eligiera, que es justo el error que el control existe para evitar.
+- El catálogo va **completo** aunque solo 10 provincias tengan datos: la carga
+  tiene que poder recibir una que todavía no existe, y filtrar una sin datos
+  devuelve vacío, que es un resultado válido y no un error.
+- El menú no usa sombra: no hay `--shadow-*` en el sistema a propósito, se
+  separa con el mismo borde que un input.
+
 ## Accesibilidad
 - Los controles interactivos son `<button>`/`<input>` reales, nunca
   `<span @click>`: no hay nada clickeable que no sea alcanzable con Tab.

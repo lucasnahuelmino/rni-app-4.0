@@ -1,7 +1,9 @@
 <script setup>
 import { ref } from 'vue'
 import { importsApi } from '../services/domains'
-import { CCTE_FIJOS } from '../constants'
+import { CCTE_FIJOS } from '../ccte'
+import { PROVINCIAS } from '../provincias'
+import Combobox from '../components/Combobox.vue'
 
 const ccte = ref('')
 const provincia = ref('')
@@ -17,8 +19,18 @@ function onArchivosChange(e) {
 }
 
 async function enviar() {
-  if (!ccte.value || !provincia.value || !localidad.value || archivos.value.length === 0) {
-    errorEnvio.value = 'Completá CCTE, Provincia, Localidad y al menos un archivo.'
+  // El combobox de CCTE y Provincia revierte lo escrito a mano cuando se
+  // pierde el foco, así que con el mouse el `required` nativo ya corta el
+  // submit. Con Enter no hay blur: el input sigue con "sant" puesto y el
+  // navegador lo da por válido, mientras que `provincia` sigue en ''. Acá
+  // se chequea el VALOR ELEGIDO y no lo que se ve en el campo.
+  const faltantes = []
+  if (!ccte.value) faltantes.push('CCTE')
+  if (!provincia.value) faltantes.push('Provincia')
+  if (!localidad.value) faltantes.push('Localidad')
+  if (archivos.value.length === 0) faltantes.push('al menos un archivo Excel')
+  if (faltantes.length) {
+    errorEnvio.value = `Falta completar: ${faltantes.join(', ')}. Elegí las opciones de la lista en vez de escribirlas.`
     return
   }
   enviando.value = true
@@ -47,17 +59,20 @@ async function enviar() {
   <section class="panel carga">
     <h2>Carga de Excel</h2>
     <form class="carga__form" @submit.prevent="enviar">
-      <label>
-        CCTE
-        <select v-model="ccte" required>
-          <option value="" disabled>Elegir…</option>
-          <option v-for="c in CCTE_FIJOS" :key="c" :value="c">{{ c }}</option>
-        </select>
-      </label>
-      <label>
-        Provincia
-        <input v-model="provincia" type="text" required />
-      </label>
+      <Combobox
+        v-model="ccte"
+        :opciones="CCTE_FIJOS"
+        label="CCTE"
+        placeholder="Escribí para buscar…"
+        required
+      />
+      <Combobox
+        v-model="provincia"
+        :opciones="PROVINCIAS"
+        label="Provincia"
+        placeholder="Escribí para buscar…"
+        required
+      />
       <label>
         Localidad
         <input v-model="localidad" type="text" required />

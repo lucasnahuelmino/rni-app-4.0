@@ -1,19 +1,27 @@
 <script setup>
 import { ref } from 'vue'
 import { useFiltrosStore } from '../stores/filtros'
-import { CCTE_FIJOS } from '../constants'
+import { CCTE_FIJOS } from '../ccte'
+import { PROVINCIAS } from '../provincias'
+import Combobox from './Combobox.vue'
 
 const filtros = useFiltrosStore()
 const abierto = ref(false)
 const provinciaInput = ref('')
 const anioInput = ref('')
 
-function agregarProvincia() {
-  const valor = provinciaInput.value.trim()
-  if (valor) {
-    filtros.toggleProvincia(valor)
-    provinciaInput.value = ''
-  }
+/**
+ * El combobox emite `seleccionado` con un valor que YA pasó por el catálogo
+ * (nunca "Cordoba" sin acento), y por `update:modelValue` lo deja en
+ * `provinciaInput`. Se vacía de acá: al hacerlo, el watch del componente
+ * repone el texto del input y queda listo para agregar otra.
+ *
+ * Sigue siendo `toggleProvincia`, como antes: elegir una provincia que ya
+ * estaba activa la quita.
+ */
+function agregarProvincia(valor) {
+  if (valor) filtros.toggleProvincia(valor)
+  provinciaInput.value = ''
 }
 
 function agregarAnio() {
@@ -75,16 +83,14 @@ function agregarAnio() {
             {{ p }} ✕
           </button>
         </div>
-        <div class="filtros__input-row">
-          <input
-            v-model="provinciaInput"
-            type="text"
-            placeholder="Agregar provincia…"
-            aria-label="Agregar provincia al filtro"
-            @keyup.enter="agregarProvincia"
-          />
-          <button class="btn btn--ghost" @click="agregarProvincia">Agregar</button>
-        </div>
+        <Combobox
+          v-model="provinciaInput"
+          :opciones="PROVINCIAS"
+          label="Provincia"
+          label-oculto
+          placeholder="Buscar provincia…"
+          @seleccionado="agregarProvincia"
+        />
       </div>
 
       <div class="filtros__grupo">
