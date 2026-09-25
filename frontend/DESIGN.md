@@ -95,13 +95,16 @@ desaparezca cambia el tamaño que Leaflet ya midió (no hace falta un
   alturas ni sombreado, solo calles, bordes de país y de provincia, ciudades
   y nombres. Sin ninguna capa los puntos flotaban sobre un fondo liso y no
   había forma de saber en qué parte del país se estaba mirando.
-- **Todo el mapa en blanco y negro.** Sobre `.leaflet-tile-pane` va
-  `grayscale(1)`, así el celeste del agua y los colores de las rutas
-  desaparecen y el mapa queda en escala de grises. El filtro va en el pane
-  y **no** en el contenedor: aplicado ahí descolorearía también los
-  marcadores, que es justo lo que no se quiere. Si no hay red, no cargan
-  las teselas y queda el fondo `--surface` de abajo: el mapa sigue
-  siendo usable igual.
+- **Todo el mapa en blanco y negro, y lo más blanco posible.** Sobre
+  `.leaflet-tile-pane` va `grayscale(1) brightness(1.08)`: el primero hace
+  desaparecer el celeste del agua y los colores de las rutas, el segundo
+  tira el conjunto hacia el blanco — sin él el mar queda en un gris medio
+  (≈ 200/255) y todo se ve apagado, mientras que con el brillo la tierra
+  satura a blanco puro y el agua queda en un gris muy claro. El filtro va en
+  el pane y **no** en el contenedor: aplicado ahí descolorearía también los
+  marcadores, que es justo lo que no se quiere. Si no hay red, no cargan las
+  teselas y queda el fondo `--surface` de abajo: el mapa sigue siendo usable
+  igual.
 - **Sin API key.** Se probó primero CARTO Positron (más limpio: solo bordes
   y etiquetas), pero pasó a exigir una clave y en vez de tirar un HTTP error
   devuelve un placeholder con el texto "API key required" dibujado dentro de

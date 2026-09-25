@@ -190,10 +190,10 @@ onMounted(async () => {
 
   mapa = L.map(mapContainer.value, {
     // Teselas de OpenStreetMap. Es un mapa POLÍTICO: no trae alturas ni
-    // sombreado (lo que pide el usuario es "sin relieve"), y el `grayscale(1)`
-    // del CSS sobre el tile pane lo deja en blanco y negro, así los colores
-    // del semáforo siguen siendo la única información cromática de la
-    // pantalla.
+    // sombreado (lo que pide el usuario es "sin relieve"), y el filtro del
+    // CSS sobre el tile pane (`grayscale(1) brightness(1.08)`) lo deja en
+    // blanco y negro y tirado hacia el blanco, así los colores del semáforo
+    // siguen siendo la única información cromática de la pantalla.
     //
     // La atribución es obligatoria: OpenStreetMap la exige, así que el
     // control vuelve a estar encendido.
@@ -421,15 +421,20 @@ function onLocalidadInput() {
 /* OpenStreetMap viene bastante coloreado: agua en celeste, rutas en amarillo
    y naranja, usos de suelo en verde. grayscale(1) lo deja estrictamente en
    blanco y negro, que es lo que se pidió (mapa político, "sin colorear").
+   brightness(1.08) tira para el lado del blanco: sin eso el mar queda en un
+   gris medio (#AAD3DF pasado a gris ≈ 200/255) y todo se ve apagado. Con el
+   brillo, la tierra (#F2EFE9 ≈ 239/255) satura a blanco puro y el agua queda
+   en un gris muy claro, mientras que las etiquetas --que arrancan en ~#333--
+   apenas se aclaran y siguen teniendo contraste.
    Va sobre el TILE PANE y no sobre el contenedor: el contenedor también
    contiene los marcadores, y descolorearlos arruinaría el semáforo. */
 .mapa-canvas .leaflet-tile-pane {
-  filter: grayscale(1);
+  filter: grayscale(1) brightness(1.08);
 }
 
-/* La atribución es obligatoria (OpenStreetMap + CARTO exigen declararla),
-   así que hay que reestilurarla: Leaflet la trae con fondo blanco opaco,
-   borde y tipografía chiquita sin relación con el sistema. */
+/* La atribución es obligatoria (OpenStreetMap exige declararla), así que hay
+   que reestilurarla: Leaflet la trae con fondo blanco opaco, borde y
+   tipografía chiquita sin relación con el sistema. */
 .mapa-canvas .leaflet-control-attribution {
   background: color-mix(in srgb, var(--surface) 94%, transparent);
   color: var(--ink-soft);
