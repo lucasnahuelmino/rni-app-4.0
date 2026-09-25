@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import io
-
 import pandas as pd
 from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile
 
@@ -28,7 +26,10 @@ async def post_import(
     for archivo in archivos:
         contenido = await archivo.read()
         try:
-            df = pd.read_excel(io.BytesIO(contenido), header=8)
+            # La detección de la fila de encabezados vive en el service: es
+            # la misma lógica que decide qué columnas son, no solo dónde
+            # empiezan (ver `import_service.leer_excel`).
+            df = import_service.leer_excel(contenido)
         except Exception as exc:  # noqa: BLE001
             raise HTTPException(status_code=400, detail=f"No se pudo leer {archivo.filename}: {exc}") from exc
         leidos.append((archivo.filename, df))

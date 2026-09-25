@@ -12,7 +12,13 @@ import MapPopup from '../components/mapa/MapPopup.vue'
 const filtros = useFiltrosStore()
 const escala = useColorScaleStore()
 
-const aplicarFiltros = ref(false)
+// Arranca en true: apretar un CCTE en el panel de filtros tiene que filtrar
+// los puntos, que es lo primero que se espera al usarlo. Sigue siendo una
+// casilla, así que quien quiera ver todos los centros juntos la desmarca y
+// listo. (Antes arrancaba en false: el mapa ignoraba los filtros del topbar
+// y, encima, el panel quedaba tapado por el mapa -- motivo por el que parecía
+// que "apretar un CCTE no filtraba nada".)
+const aplicarFiltros = ref(true)
 const localidadBusqueda = ref('')
 const loading = ref(false)
 const error = ref(null)
@@ -282,7 +288,7 @@ function onLocalidadInput() {
 
       <label
         class="mapa-toggle"
-        title="Los filtros globales de CCTE/Provincia/Año del topbar no afectan al mapa a menos que actives esta casilla."
+        title="Filtra los puntos con el CCTE / Provincia / ño elegidos en el panel de filtros del topbar. Desmárcalo para ver todos los centros juntos."
       >
         <input v-model="aplicarFiltros" type="checkbox" />
         Usar filtros globales
@@ -420,6 +426,21 @@ function onLocalidadInput() {
   position: absolute;
   inset: 0;
   border: 1px solid var(--line);
+
+  /* CLAVE: Leaflet pinta sus capas con z-index 400-800 (.leaflet-pane 400,
+     .leaflet-control 800, popups 700). El contenedor no tenía z-index, así
+     que esas capas NO estaban confinadas: competían directamente contra el
+     resto de la página en el contexto raíz. El panel de filtros del topbar
+     está en z-index 20 y quedaba DEBAJO del mapa -- imposible ver los CCTE
+     ni marcar "Usar filtros globales".
+
+     `isolation: isolate` crea el contexto de apilamiento SIN mover al mapa
+     de lugar (sigue con z-index auto, o sea por debajo de todo lo que tenga
+     z-index real): las 400-800 de Leaflet quedan adentro y los controles de
+     la app, que están arriba, vuelven a ganarle. No se sube el z-index del
+     topbar a lo loco porque eso taparía otras cosas (los popups del mapa
+     siguen necesitando verse por encima del mapa, y se ven: están adentro. */
+  isolation: isolate;
 }
 
 /* Leaflet trae fondo gris y controles con borde grueso y sombra: el sistema

@@ -152,3 +152,43 @@ def test_editar_y_eliminar_localidad_via_http(client):
     )
     assert resp_delete.status_code == 200
     assert resp_delete.json()["filas_borradas"] == 3
+
+
+def _excel_bytes_encabezado_arriba() -> bytes:
+    """El mismo archivo de ENACOM pero SIN las 8 filas de metadata: los
+    encabezados están en la fila 1."""
+    df = pd.DataFrame({
+        "Resultado": ["1,5", "3.2", "10"],
+        "Fecha": ["20/03/2025", "20/03/2025", "21/03/2025"],
+        "Hora": ["10:00:00", "10:30:00", "09:00:00"],
+        "Lat": [-34.6037, -34.6040, -34.6050],
+        "Lon": [-58.3816, -58.3820, -58.3830],
+        "Sonda": ["S1", "S1", "S2"],
+    })
+    buf = io.BytesIO()
+    with pd.ExcelWriter(buf, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, startrow=0)
+    buf.seek(0)
+    return buf.read()
+
+
+def test_import_con_encabezados_en_la_primera_fila(client):
+    """El caso reportado: "no se encontró columna de Resultado (V/m)".
+
+    La ruta hacía `pd.read_excel(..., header=8)`, así que con los encabezados
+    en la fila 1 pandas tomaba una fila de datos por encabezado, no encontraba
+    ninguna columna esperada y el import se quejaba de un nombre de columna
+    que sí existía. Ahora la fila se detecta por su contenido.
+    """
+    resp = client.post(
+        "/api/import",
+        data={"ccte": "Córdoba", "provincia": "Córdoba", "localidad": "Villa Allende",
+              "expediente": "EXP-2"},
+        files={"archivos": ("nuevo.xlsx", _excel_bytes_encabezado_arriba(),
+                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+    )
+
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["registros_nuevos"] == 3
+    assert body["advertencias"] == [], body["advertencias"]

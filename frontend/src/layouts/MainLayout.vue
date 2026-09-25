@@ -3,7 +3,8 @@ import { useRoute } from 'vue-router'
 import FiltrosBar from '../components/FiltrosBar.vue'
 // Logo institucional tal cual está en assets: Vite lo copia al build y
 // devuelve la URL resuelta. El PNG es monocromático azul marino (#0B1742,
-// el mismo valor que --ink), así que va sobre fondo claro.
+// el mismo valor que --ink), por lo que en el sidebar se lo pasa a blanco
+// con un filtro (ver .sidebar__logo) en vez de traer otro archivo.
 import logoEnacom from '../assets/logoenacom.png'
 
 const route = useRoute()
@@ -24,8 +25,14 @@ const nav = [
   <div class="shell">
     <aside class="sidebar" aria-label="Navegación principal">
       <div class="sidebar__brand">
-        <span class="sidebar__mark">RNI</span>
-        <span class="sidebar__sub">ENACOM</span>
+        <img
+          class="sidebar__logo"
+          :src="logoEnacom"
+          alt="ENACOM"
+          width="112"
+          height="29"
+        />
+        <p class="sidebar__claim">Base de datos de Radiaciones no Ionizantes</p>
       </div>
       <nav>
         <ul class="sidebar__nav">
@@ -37,12 +44,13 @@ const nav = [
           </li>
         </ul>
       </nav>
+
+      <p class="sidebar__pie">Dirección Nacional de Control y Fiscalización</p>
     </aside>
 
     <div class="main">
       <header class="topbar">
         <div class="topbar__titulo">
-          <img class="topbar__logo" :src="logoEnacom" alt="ENACOM" width="112" height="29" />
           <h1>{{ route.meta.titulo }}</h1>
         </div>
         <FiltrosBar />
@@ -70,26 +78,40 @@ const nav = [
   background: var(--ink);
   color: var(--on-ink);
   padding: var(--space-8) var(--space-5);
+
+  /* Columna con el pie anclado abajo: `.shell` estira el aside al alto
+     completo, así que el `margin-top: auto` del pie lo mantiene pegado al
+     fondo aunque la navegación no llene la altura. */
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
 }
 
 .sidebar__brand {
   display: flex;
-  align-items: baseline;
+  flex-direction: column;
   gap: var(--space-4);
-  padding: 0 var(--space-4) var(--space-8);
+  padding: 0 var(--space-4);
+}
+
+/* El PNG es monocromo #0B1742, que es exactamente el fondo del sidebar:
+   a pelo quedaba invisible (era el motivo por el que vivía en la barra
+   superior sobre fondo claro). `brightness(0)` deja todo lo opaco negro
+   y `invert(1)` lo deja blanco; el alfa no se toca, así que el fondo
+   sigue transparente y no aparece ningún rectángulo detrás. */
+.sidebar__logo {
+  width: 112px;
+  height: auto;
+  display: block;
+  filter: brightness(0) invert(1);
+}
+
+.sidebar__claim {
+  margin: 0;
   font-family: var(--font-display);
-}
-
-.sidebar__mark {
-  font-size: var(--fs-2xl);
-  font-weight: 700;
-  color: var(--on-ink);
-}
-
-.sidebar__sub {
-  font-size: var(--fs-2xs);
-  color: var(--on-ink-faint);
-  letter-spacing: 0.02em;
+  font-size: var(--fs-xs);
+  line-height: 1.35;
+  color: var(--on-ink-soft);
 }
 
 .sidebar__nav {
@@ -129,6 +151,17 @@ const nav = [
   color: var(--signal-on-ink);
 }
 
+/* Pie del sidebar: el organismo responsable, anclado al fondo del todo.
+   `--on-ink-faint` es blanco al 55% sobre --ink (5.76:1), pasa AA. */
+.sidebar__pie {
+  margin: auto 0 0;
+  padding: var(--space-6) var(--space-4) 0;
+  border-top: 1px solid var(--on-ink-wash);
+  font-size: var(--fs-2xs);
+  line-height: 1.4;
+  color: var(--on-ink-faint);
+}
+
 /* El anillo de foco global es --signal, que sobre --ink da 2.52:1 y casi no
    se ve: dentro del sidebar se sustituye por el acento claro (6.15:1). */
 .sidebar :focus-visible {
@@ -158,15 +191,6 @@ const nav = [
   align-items: center;
   gap: var(--space-6);
   min-width: 0;
-}
-
-/* El logo es ancho y corto (267x68): se fija el ancho y la altura sigue al
-   aspecto, así no se deforma si se reemplaza el PNG por una versión nueva. */
-.topbar__logo {
-  width: 112px;
-  height: auto;
-  flex-shrink: 0;
-  display: block;
 }
 
 .topbar__titulo h1 {

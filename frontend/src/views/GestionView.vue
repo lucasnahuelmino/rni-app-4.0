@@ -1,5 +1,5 @@
 <script setup>
-import { nextTick, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 
 import { localitiesApi } from '../services/domains'
 import { useFetchOnFiltros } from '../composables/useFetchOnFiltros'
@@ -36,6 +36,20 @@ const { data: localidades, loading, error, reload } = useFetchOnFiltros(
 
 const seleccionada = ref(null)
 const detalle = ref(null)
+
+/**
+ * Key del CentroResumen: cambia con cada CCTE elegido, así que el panel se
+ * remonta entero.
+ *
+ * Los watchers de adentro ya piden los datos frescos (usa la store y los
+ * mismos filtros), pero remontar además descarta lo que pueda quedar colgado
+ * de la carga anterior: un fallo de red en "Tiempo trabajado diario" no se
+ * iba a ir hasta que alguien apretara Reintentar, y el gráfico de tendencia
+ * se redibujaba por arriba de la instancia vieja. Costo: los cinco pedidos de
+ * nuevo, medio segundo, y a cambio el estado siempre es el del centro que se
+ * está mirando.
+ */
+const claveCentro = computed(() => filtros.ccte.join('|'))
 
 function seleccionar(row) {
   seleccionada.value = row
@@ -113,7 +127,7 @@ watch(
         />
       </template>
 
-      <CentroResumen v-else />
+      <CentroResumen v-else :key="claveCentro" />
     </section>
   </div>
 </template>

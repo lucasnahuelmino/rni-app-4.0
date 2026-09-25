@@ -12,14 +12,16 @@ import sqlite3
 
 import pandas as pd
 
-from app.calculations.dates import desglose_diario, desglose_mensual
+from app.calculations.dates import desglose_diario_desde_agrupado, desglose_mensual
 from app.db.repositories import mediciones_repo
 from app.schemas.filters import FiltrosQuery
 
 
 def tiempo_diario_localidad(conn: sqlite3.Connection, ccte: str, provincia: str, localidad: str) -> list[dict]:
-    filas = mediciones_repo.filas_por_localidad(conn, ccte, provincia, localidad)
-    return desglose_diario(pd.DataFrame(filas))
+    agg = mediciones_repo.agrupar_min_max_por_archivo_dia(
+        conn, ccte=[ccte], provincia=[provincia], localidad=[localidad],
+    )
+    return desglose_diario_desde_agrupado(pd.DataFrame(agg))
 
 
 def tiempo_diario_ccte(conn: sqlite3.Connection, ccte: list[str] | None = None) -> list[dict]:
@@ -59,10 +61,8 @@ def tiempo_diario_ccte(conn: sqlite3.Connection, ccte: list[str] | None = None) 
     miles de filas: en la base real el máximo por CCTE es 135 (Comodoro
     Rivadavia) y todos los demás quedan por debajo de 40.
     """
-    filas = mediciones_repo.query_filtrada(
-        conn, ccte=ccte, columnas="fecha_hora, nombre_archivo",
-    )
-    return desglose_diario(pd.DataFrame(filas))
+    agg = mediciones_repo.agrupar_min_max_por_archivo_dia(conn, ccte=ccte)
+    return desglose_diario_desde_agrupado(pd.DataFrame(agg))
 
 
 def tiempo_mensual_localidad(conn: sqlite3.Connection, ccte: str, provincia: str, localidad: str) -> list[dict]:
@@ -74,9 +74,9 @@ def tiempo_mensual(conn: sqlite3.Connection, filtros: FiltrosQuery) -> list[dict
     """Desglose mensual global (o filtrado por ccte/provincia/año/localidad),
     para el panel de Gráficos > Operativo. Solo trae las columnas que hacen
     falta (fecha_hora, nombre_archivo), no la tabla completa."""
-    filas = mediciones_repo.query_filtrada(
+    agg = mediciones_repo.agrupar_min_max_por_archivo_dia(
         conn, ccte=filtros.ccte, provincia=filtros.provincia, anio=filtros.anio,
-        localidad=filtros.localidad, columnas="fecha_hora, nombre_archivo",
+        localidad=filtros.localidad,
     )
-    diario = desglose_diario(pd.DataFrame(filas))
+    diario = desglose_diario_desde_agrupado(pd.DataFrame(agg))
     return desglose_mensual(diario)

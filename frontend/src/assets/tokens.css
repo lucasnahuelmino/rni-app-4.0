@@ -261,9 +261,14 @@ table {
   font-size: var(--fs-md);
 }
 
+/* Encabezado y contenido centrados en TODAS las columnas de TODAS las
+   tablas. Antes th/td iba a la izquierda y .num a la derecha, asi
+   en cada tabla las cabeceras quedaban pegadas a la izquierda contra
+   celdas pegadas a la derecha y el ojo no seguia la columna: un solo
+   alineamiento para los dos extremos. */
 th,
 td {
-  text-align: left;
+  text-align: center;
   padding: var(--space-4);
   border-bottom: 1px solid var(--line);
 }
@@ -276,13 +281,13 @@ th {
 }
 
 td.num {
-  text-align: right;
+  text-align: center;
 }
 
 /* Igual que td.num: las cabeceras numéricas tienen que caer sobre su
    columna, no a la izquierda. */
 th.num {
-  text-align: right;
+  text-align: center;
 }
 
 .btn {

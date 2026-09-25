@@ -9,6 +9,7 @@ sistema Streamlit, sin UI y con persistencia real del reporte de importación
 """
 from __future__ import annotations
 
+import io
 import json
 import sqlite3
 import unicodedata
@@ -79,6 +80,88 @@ def _encontrar_columna(df: pd.DataFrame, campo: str) -> str | None:
             if _normalizar_encabezado(col).startswith("resultado"):
                 return col  # type: ignore[return-value]
     return None
+
+
+# Cuántas filas del Excel se inspeccionan buscando los encabezados. 20 deja
+# lugar a un preámbulo largo de metadata sin acercarse a las filas de datos:
+# en los archivos reales de origen los encabezados están en la fila 9.
+_FILAS_A_INSPECCIONAR = 20
+
+# Mínimo de campos esperados para aceptar una fila como encabezados. Uno solo
+# no alcanza: una fila de datos que traiga la palabra "Fecha" en alguna celda
+# empataría con un encabezado real. Con dos (Resultado + al menos una columna
+# más) eso no puede pasar.
+_MINIMO_CAMPOS = 2
+
+
+def _puntaje_encabezado(valores) -> int:
+    """Cuántos campos de `COLUMNAS_ESPERADAS` trae esta fila (0 si ninguno)."""
+    normalizados = {_normalizar_encabezado(v) for v in valores}
+    puntaje = 0
+    for campo, variantes in COLUMNAS_ESPERADAS.items():
+        if any(_normalizar_encabezado(v) in normalizados for v in variantes):
+            puntaje += 1
+        elif campo == "resultado" and any(h.startswith("resultado") for h in normalizados):
+            # El mismo respaldo por prefijo que usa `_encontrar_columna`:
+            # "Resultado (V/m)" no está en la lista pero igual es la columna.
+            puntaje += 1
+    return puntaje
+
+
+def leer_excel(contenido: bytes) -> pd.DataFrame:
+    """Lee un .xlsx ubicando los encabezados donde estén, no donde estaban.
+
+    Antes el header estaba hardcodeado en `header=8` (la fila 9), que es
+    donde quedaba en los archivos del generador original. Cualquier archivo
+    con los encabezados en otra fila -- una fila de título arriba, un export
+    que no trae el preámbulo -- hacía que pandas tomara una fila cualquiera
+    por encabezado y después fallara con *"no se encontró columna de
+    Resultado (V/m)"*: un mensaje que ni siquiera insinuaba que el problema
+    era la fila, no la columna, y que mandaba a buscar un nombre de columna
+    que sí existía.
+
+    Se lee sin encabezado, se puntúa cada una de las primeras
+    `_FILAS_A_INSPECCIONAR` filas contra los campos esperados y se elige la
+    que más dé (con empate gana la primera, la más arriba). Si ninguna llega
+    a `_MINIMO_CAMPOS`, se usa la 8 -- el valor viejo -- para que el error
+    que sigue a éste sea exactamente el mismo de antes en vez de inventar una
+    fila al azar.
+
+    El renglón elegido puede traer celdas vacías o repetidas; se le ponen
+    nombres igual, porque `df[""]` y dos columnas "Fecha" no son nombres con
+    los que `_leer_y_normalizar` pueda trabajar.
+    """
+    crudo = pd.read_excel(io.BytesIO(contenido), header=None)
+    if crudo.empty:
+        return crudo
+
+    mejor_fila, mejor_puntaje = 8, 0
+    for i in range(min(_FILAS_A_INSPECCIONAR, len(crudo))):
+        puntaje = _puntaje_encabezado(crudo.iloc[i])
+        if puntaje > mejor_puntaje:
+            mejor_fila, mejor_puntaje = i, puntaje
+            if mejor_puntaje == len(COLUMNAS_ESPERADAS):
+                break  # perfecto: no hay nada mejor que encontrar
+
+    if mejor_puntaje < _MINIMO_CAMPOS:
+        mejor_fila = min(8, len(crudo) - 1)
+
+    vistos: dict[str, int] = {}
+    nombres: list[str] = []
+    for i, valor in enumerate(crudo.iloc[mejor_fila]):
+        nombre = "" if pd.isna(valor) else str(valor).strip()
+        if not nombre:
+            nombre = f"col_{i}"
+        if nombre in vistos:
+            vistos[nombre] += 1
+            nombre = f"{nombre}_{vistos[nombre]}"
+        else:
+            vistos[nombre] = 1
+        nombres.append(nombre)
+
+    cuerpo = crudo.iloc[mejor_fila + 1:].reset_index(drop=True)
+    cuerpo.columns = nombres
+    return cuerpo
 
 
 def _leer_y_normalizar(df_excel: pd.DataFrame, nombre_archivo: str) -> tuple[pd.DataFrame, list[str]]:

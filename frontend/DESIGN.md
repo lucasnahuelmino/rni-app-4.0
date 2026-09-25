@@ -48,9 +48,13 @@ estimados, y pasan WCAG AA.
   decoración **sobre `--ink`**, derivados de `--surface` con `color-mix()`.
   Cambiá `--surface` y todo lo que va encima de `--ink` se mueve con él.
 
-El logo va en la barra superior, junto al título, sobre fondo claro: es la
-única forma de que se vea con su azul original (el PNG es monócromo y el
-sidebar es del mismo azul, así que ahí sería invisible).
+El logo va en el **sidebar**, arriba de todo, con "Base de datos de
+Radiaciones no Ionizantes" debajo y "Dirección Nacional de Control y
+Fiscalización" anclado al pie. El PNG es monocromo `#0B1742`, el mismo
+azul que el fondo del sidebar, así que ahí quedaba invisible (ese era el
+motivo por el que vivía en la barra superior sobre fondo claro): se lo
+pasa a blanco con `filter: brightness(0) invert(1)`, que no toca el alfa y
+por eso no deja ningún rectángulo detrás.
 
 ## Tipografía
 - Titulares y navegación: **Space Grotesk** (geométrica, técnica, no es el
@@ -75,8 +79,10 @@ número no está en la escala, no se usa.
 - **No hay `--shadow-*` a propósito.** No es un hueco: ver el principio rector.
 
 ## Layout
-Sidebar fijo oscuro (`--ink`) a la izquierda con la navegación. Barra
-superior con el logo de ENACOM + el título de la vista + los filtros globales
+Sidebar fijo oscuro (`--ink`) a la izquierda: logo de ENACOM + "Base de
+datos de Radiaciones no Ionizantes" arriba, la navegación en el medio y
+"Dirección Nacional de Control y Fiscalización" anclado al pie. Barra
+superior con el título de la vista + los filtros globales
 (CCTE/Provincia/Año) como chips, siempre visibles. Contenido principal en
 grilla densa, alineado a la izquierda. Los bloques de KPI son rectángulos con
 borde fino y una barra de color a la izquierda (no shadow, no border-radius

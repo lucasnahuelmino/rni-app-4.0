@@ -137,19 +137,37 @@ def desglose_diario(df: pd.DataFrame) -> list[dict]:
     (igual que agrupaba la aplicación Streamlit original) -- no se suman
     entre sí para no ocultar que fueron jornadas/archivos distintos.
     """
-    agg = _agrupar_por_archivo_dia(df)
-    if agg.empty:
+    return desglose_diario_desde_agrupado(_agrupar_por_archivo_dia(df))
+
+
+def desglose_diario_desde_agrupado(agg: pd.DataFrame) -> list[dict]:
+    """Detalle día por día sobre un `agg` ya agrupado (nombre_archivo, _dia,
+    min, max).
+
+    `agg` puede venir de `_agrupar_por_archivo_dia` (pandas) o de
+    `mediciones_repo.agrupar_min_max_por_archivo_dia` (SQL): da lo mismo,
+    porque `pd.Timestamp()` normaliza por igual el datetime de pandas y el
+    texto ISO que devuelve SQLite. Lo único que cambia es quién agrupa, y
+    eso es lo que fija `test_agrupado_en_sql_igual_que_en_pandas`.
+
+    Está separado de `desglose_diario` por rendimiento: el camino SQL trae
+    241 filas en vez de 219 818, y todo lo de acá abajo (duración, formato,
+    orden) es idéntico al de siempre.
+    """
+    if agg is None or agg.empty:
         return []
 
     agg = agg.sort_values("_dia")
     resultado = []
     for _, row in agg.iterrows():
-        duracion_seg = int((row["max"] - row["min"]).total_seconds())
+        min_dt = pd.Timestamp(row["min"])
+        max_dt = pd.Timestamp(row["max"])
+        duracion_seg = int((max_dt - min_dt).total_seconds())
         resultado.append({
             "fecha": str(row["_dia"]),
             "nombre_archivo": row["nombre_archivo"],
-            "inicio": row["min"].strftime("%H:%M:%S"),
-            "fin": row["max"].strftime("%H:%M:%S"),
+            "inicio": min_dt.strftime("%H:%M:%S"),
+            "fin": max_dt.strftime("%H:%M:%S"),
             "duracion_seg": duracion_seg,
             "duracion_fmt": format_timedelta_long(duracion_seg),
         })

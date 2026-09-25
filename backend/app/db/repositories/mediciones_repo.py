@@ -145,6 +145,48 @@ def query_filtrada(conn: sqlite3.Connection, ccte: Iterable[str] | None = None,
     return [dict(r) for r in cur.fetchall()]
 
 
+def agrupar_min_max_por_archivo_dia(conn: sqlite3.Connection, ccte=None, provincia=None,
+                                    anio=None, localidad=None) -> list[dict]:
+    """MIN/MAX de `fecha_hora` por (nombre_archivo, dia), agrupado en SQL.
+
+    Devuelve exactamente la salida de `_agrupar_por_archivo_dia` de
+    `calculations/dates.py` (nombre_archivo, _dia, min, max) pero dejando la
+    agregación en SQLite en vez de arrastrar todas las filas a Python.
+
+    Motivo: el desglose diario/mensual del Centro operativo necesita
+    `fecha_hora` + `nombre_archivo` de TODAS las mediciones para quedarse con
+    241 grupos. Medido en la base real (219 818 filas) el camino anterior era
+    0,78 s de fetch + construir un DataFrame de 219 818 filas + parsear 219
+    818 datetime + agrupar en pandas: ~2,8 s solo en la vista General, y 17-21
+    s cuando la vista dispara sus cinco pedidos a la vez (CPU puro, el GIL
+    los serializa y ninguno termina a tiempo). El agregado en SQL son 0,43 s
+    y 241 filas.
+
+    Comparar `fecha_hora` como texto es legible porque es ISO de longitud
+    fija (`2025-12-03T09:13:15`): lexicográficamente ordena igual que
+    cronológicamente, `substr(fecha_hora, 1, 10)` es el día y
+    `substr(fecha_hora, 12, 8)` la hora en el mismo formato que daba
+    `strftime("%H:%M:%S")`. Verificado contra los 241 grupos reales:
+    igualdad exacta con pandas. Lo cubre
+    `test_tiempos.py::test_agrupado_en_sql_igual_que_en_pandas`, que es lo
+    que avisa si alguien cambia uno de los dos lados.
+
+    El `fecha_hora IS NOT NULL` es el mismo `dropna` que hace pandas: la
+    columna es nullable (hoy tiene 0 nulos, pero nada la obliga a serlo).
+    """
+    where, params = construir_where(ccte, provincia, anio, localidad)
+    condicion = "fecha_hora IS NOT NULL"
+    where = f"{where} AND {condicion}" if where else f"WHERE {condicion}"
+    sql = (
+        "SELECT nombre_archivo, substr(fecha_hora, 1, 10) AS _dia, "
+        "MIN(fecha_hora) AS min, MAX(fecha_hora) AS max "
+        f"FROM mediciones {where} "
+        "GROUP BY nombre_archivo, substr(fecha_hora, 1, 10)"
+    )
+    cur = conn.execute(sql, params)
+    return [dict(r) for r in cur.fetchall()]
+
+
 def _a_lista(valor: Any) -> list[Any]:
     """Un valor suelto o varios -> lista, para los IN () de `construir_where`.
 
