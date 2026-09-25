@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted } from 'vue'
 import { useColorScaleStore } from '../stores/colorScale'
+import { fmtPct } from '../format'
 
 const props = defineProps({
   pct: { type: Number, default: null },
@@ -18,7 +19,14 @@ const color = computed(() => escala.colorPorPct(props.pct))
 // agrupados en 10 etiquetas repetidas. El color del borde y del punto sigue
 // siendo el semáforo, que es el que dice el tramo; el rango se conserva en
 // el `title` para quien quiera verlo al pasar el mouse.
-const valor = computed(() => (props.pct != null ? `${props.pct.toFixed(1)}%` : null))
+//
+// Va con la precisión exacta de la base (fmtPct, hasta 4 decimales) y no
+// con `.toFixed(1)`: con un decimal los valores chicos se veían "0,0 %", lo
+// mismo que un resultado en cero.
+const valor = computed(() => {
+  const v = fmtPct(props.pct)
+  return v == null ? null : `${v}%`
+})
 const rango = computed(() => escala.etiquetaPorPct(props.pct))
 </script>
 

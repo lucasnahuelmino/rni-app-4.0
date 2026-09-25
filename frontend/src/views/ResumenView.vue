@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { localitiesApi } from '../services/domains'
+import { fmtVm } from '../format'
 import { useFetchOnFiltros } from '../composables/useFetchOnFiltros'
 import DataPanel from '../components/DataPanel.vue'
 import SemaforoBadge from '../components/SemaforoBadge.vue'
@@ -101,7 +102,7 @@ function ariaSort(campo) {
               <td>{{ row.provincia }}</td>
               <td>{{ row.localidad }}</td>
               <td class="num">{{ row.mediciones }}</td>
-              <td class="num">{{ row.resultado_max_vm != null ? row.resultado_max_vm.toFixed(2) : '—' }}</td>
+              <td class="num">{{ row.resultado_max_vm != null ? fmtVm(row.resultado_max_vm) : '—' }}</td>
               <td><SemaforoBadge :pct="row.resultado_max_pct" /></td>
               <td>{{ row.fecha_inicio ? row.fecha_inicio.slice(0, 10) : '—' }}</td>
               <td>{{ row.fecha_fin ? row.fecha_fin.slice(0, 10) : '—' }}</td>

@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import { kpisApi, localitiesApi, chartsApi } from '../services/domains'
+import { fmtPct, fmtVm } from '../format'
 import { useFetchOnFiltros } from '../composables/useFetchOnFiltros'
 import KpiCard from '../components/KpiCard.vue'
 import CcteCard from '../components/CcteCard.vue'
@@ -46,7 +47,7 @@ const picoTexto = computed(() => {
           <KpiCard label="Centros (CCTE)" :value="kpis.cctes" />
           <KpiCard
             label="Promedio del límite"
-            :value="kpis.promedio_pct != null ? kpis.promedio_pct.toFixed(1) : '—'"
+            :value="kpis.promedio_pct != null ? fmtPct(kpis.promedio_pct) : '—'"
             unidad="%"
           />
         </div>
@@ -55,7 +56,7 @@ const picoTexto = computed(() => {
       <div v-if="!loadingKpis && !errorKpis && kpis?.pico_maximo" class="panel pico-maximo">
         <h3>Pico máximo registrado</h3>
         <p>
-          <strong class="num">{{ kpis.pico_maximo.resultado_vm?.toFixed(2) }} V/m</strong>
+          <strong class="num">{{ fmtVm(kpis.pico_maximo.resultado_vm) }} V/m</strong>
           en {{ picoTexto }}
           <SemaforoBadge :pct="kpis.pico_maximo.resultado_pct" />
         </p>
@@ -94,7 +95,7 @@ const picoTexto = computed(() => {
                 <td>{{ row.localidad }}</td>
                 <td>{{ row.provincia }}</td>
                 <td>{{ row.ccte }}</td>
-                <td class="num">{{ row.valor?.toFixed(2) }}</td>
+                <td class="num">{{ fmtVm(row.valor) }}</td>
               </tr>
             </tbody>
           </table>

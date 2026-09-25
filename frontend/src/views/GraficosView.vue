@@ -1,6 +1,7 @@
 <script setup>
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { chartsApi, kpisApi, localitiesApi, tiemposApi } from '../services/domains'
+import { fmtPct, fmtVm } from '../format'
 import { useFetchOnFiltros } from '../composables/useFetchOnFiltros'
 import { useFiltrosStore } from '../stores/filtros'
 import DataPanel from '../components/DataPanel.vue'
@@ -26,6 +27,20 @@ const { data: ranking, loading: loadingRanking, error: errorRanking, reload: rel
   { watchFiltros: false },
 )
 watch(metricaRanking, reloadRanking)
+
+// El ranking devuelve SIEMPRE una columna llamada `valor`, pero qué es
+// depende de la métrica elegida: puede ser un %, un V/m o una cantidad de
+// mediciones. Con el `.toFixed(2)` fijo que había, "cantidad de mediciones"
+// salía "123.00" y los % se mostraban con un solo decimal. Cada métrica
+// trae su formateador, que es el de la precisión real de la base.
+const METRICAS = {
+  resultado_prom_pct: { fmt: fmtPct, etiqueta: 'Promedio %' },
+  resultado_max_vm: { fmt: fmtVm, etiqueta: 'Máximo V/m' },
+  resultado_max_pct: { fmt: fmtPct, etiqueta: 'Máximo %' },
+  // COUNT(*) entero: ni fmtVm ni fmtPct, se muestra tal cual.
+  mediciones: { fmt: (v) => v, etiqueta: 'Cantidad de mediciones' },
+}
+const metrica = computed(() => METRICAS[metricaRanking.value] ?? METRICAS.resultado_prom_pct)
 
 // Horas trabajadas y días con medición por CCTE -- ya vienen precalculados
 // en resumen_ccte (services/statistics.py los mantiene actualizados en cada
@@ -59,7 +74,7 @@ const { data: tiempoMensual, loading: loadingTiempoMensual, error: errorTiempoMe
         :empty="!histograma?.bins?.length"
         @reintentar="reloadHist"
       >
-        <HistogramChart :bins="histograma.bins" />
+        <HistogramChart :bins="histograma.bins" :campo="campoHistograma" />
       </DataPanel>
     </section>
 
@@ -135,14 +150,14 @@ const { data: tiempoMensual, loading: loadingTiempoMensual, error: errorTiempoMe
       >
         <table>
           <thead>
-            <tr><th>Localidad</th><th>Provincia</th><th>CCTE</th><th>Valor</th></tr>
+            <tr><th>Localidad</th><th>Provincia</th><th>CCTE</th><th>{{ metrica.etiqueta }}</th></tr>
           </thead>
           <tbody>
             <tr v-for="row in ranking" :key="`${row.ccte}-${row.localidad}`">
               <td>{{ row.localidad }}</td>
               <td>{{ row.provincia }}</td>
               <td>{{ row.ccte }}</td>
-              <td class="num">{{ row.valor?.toFixed(2) }}</td>
+              <td class="num">{{ metrica.fmt(row.valor) }}</td>
             </tr>
           </tbody>
         </table>

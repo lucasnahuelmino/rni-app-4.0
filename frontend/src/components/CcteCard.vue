@@ -1,4 +1,6 @@
 <script setup>
+import { fmtPct, fmtVm } from '../format'
+
 defineProps({
   ccte: { type: Object, required: true },
 })
@@ -14,11 +16,11 @@ defineProps({
       </div>
       <div class="ccte-card__row">
         <dt>Pico V/m</dt>
-        <dd class="num">{{ ccte.resultado_max_vm != null ? ccte.resultado_max_vm.toFixed(2) : '—' }}</dd>
+        <dd class="num">{{ ccte.resultado_max_vm != null ? fmtVm(ccte.resultado_max_vm) : '—' }}</dd>
       </div>
       <div class="ccte-card__row">
         <dt>Pico %</dt>
-        <dd class="num">{{ ccte.resultado_max_pct != null ? ccte.resultado_max_pct.toFixed(1) : '—' }}</dd>
+        <dd class="num">{{ ccte.resultado_max_pct != null ? fmtPct(ccte.resultado_max_pct) : '—' }}</dd>
       </div>
       <div class="ccte-card__row" v-if="ccte.localidad_max">
         <dt>Localidad</dt>

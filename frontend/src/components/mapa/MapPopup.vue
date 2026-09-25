@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted } from 'vue'
 import { useColorScaleStore } from '../../stores/colorScale'
+import { fmtPct, fmtVm } from '../../format'
 
 /**
  * Popup del mapa como componente Vue.
@@ -29,12 +30,11 @@ onMounted(() => props.escala.asegurarCargado?.())
 const color = computed(() => props.escala.colorPorPct(props.punto.resultado_pct))
 const rango = computed(() => props.escala.etiquetaPorPct(props.punto.resultado_pct))
 
-const vm = computed(() =>
-  props.punto.resultado_vm != null ? props.punto.resultado_vm.toFixed(2) : null,
-)
-const pct = computed(() =>
-  props.punto.resultado_pct != null ? `${props.punto.resultado_pct.toFixed(1)}%` : null,
-)
+const vm = computed(() => fmtVm(props.punto.resultado_vm))
+const pct = computed(() => {
+  const v = fmtPct(props.punto.resultado_pct)
+  return v == null ? null : `${v}%`
+})
 
 // Hay DOS "San Pedro" (Catamarca y Santiago del Estero): sin provincia los
 // dos popups eran idénticos. Va en una línea aparte y en tono suave.

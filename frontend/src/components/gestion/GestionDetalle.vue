@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import { reportsApi } from '../../services/domains'
+import { fmtVm } from '../../format'
 import SemaforoBadge from '../SemaforoBadge.vue'
 
 /**
@@ -44,7 +45,7 @@ const urlPdf = computed(() =>
 
   <dl class="gestion__stats">
     <div><dt>Mediciones</dt><dd class="num">{{ localidad.mediciones }}</dd></div>
-    <div><dt>Máx. V/m</dt><dd class="num">{{ localidad.resultado_max_vm?.toFixed(2) ?? '—' }}</dd></div>
+    <div><dt>Máx. V/m</dt><dd class="num">{{ fmtVm(localidad.resultado_max_vm) ?? '—' }}</dd></div>
     <div><dt>Nivel</dt><dd><SemaforoBadge :pct="localidad.resultado_max_pct" /></dd></div>
     <div><dt>Fecha inicial</dt><dd>{{ localidad.fecha_inicio?.slice(0, 10) ?? '—' }}</dd></div>
     <div><dt>Fecha final</dt><dd>{{ localidad.fecha_fin?.slice(0, 10) ?? '—' }}</dd></div>

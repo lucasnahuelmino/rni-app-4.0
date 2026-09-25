@@ -30,6 +30,7 @@ from reportlab.platypus import Image as RLImage
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
 
 from app.calculations.dates import calcular_tiempo_trabajado_segundos, format_timedelta_long
+from app.utils import formato
 
 
 def _armar_grafico_localidades_por_provincia_ccte(filas: list[dict]) -> io.BytesIO | None:
@@ -131,9 +132,9 @@ def generar_word(datos: dict, *, localidad: str, ambito: str) -> io.BytesIO:
 
     if datos.get("resultado_max_vm") is not None:
         pct = datos.get("resultado_max_pct")
-        texto = f"Resultado máximo registrado: {datos['resultado_max_vm']:.2f} V/m"
+        texto = f"Resultado máximo registrado: {formato.vm(datos['resultado_max_vm'])} V/m"
         if pct is not None:
-            texto += f" ({pct:.2f} % del límite)"
+            texto += f" ({formato.pct(pct)} % del límite)"
         doc.add_paragraph(texto)
         doc.add_paragraph(
             f"Ubicación del máximo: {datos.get('localidad_max')}, {datos.get('provincia_max')} "
@@ -177,7 +178,7 @@ def generar_word(datos: dict, *, localidad: str, ambito: str) -> io.BytesIO:
             cells = table.add_row().cells
             cells[0].text = str(row["expediente"])
             cells[1].text = str(row["puntos"])
-            cells[2].text = f"{row['max_vm']:.2f}" if pd.notna(row["max_vm"]) else "-"
+            cells[2].text = formato.vm(row["max_vm"]) if pd.notna(row["max_vm"]) else "-"
             cells[3].text = str(row["ccte"])
             cells[4].text = str(row["provincias"])
             cells[5].text = str(row["localidades"])
@@ -205,9 +206,9 @@ def generar_pdf(datos: dict, *, localidad: str, ambito: str) -> io.BytesIO:
 
     if datos.get("resultado_max_vm") is not None:
         pct = datos.get("resultado_max_pct")
-        texto = f"<b>Resultado máximo registrado:</b> {datos['resultado_max_vm']:.2f} V/m"
+        texto = f"<b>Resultado máximo registrado:</b> {formato.vm(datos['resultado_max_vm'])} V/m"
         if pct is not None:
-            texto += f" ({pct:.2f} % del límite)"
+            texto += f" ({formato.pct(pct)} % del límite)"
         story.append(Paragraph(texto, styles["Normal"]))
         story.append(Paragraph(
             f"<b>Ubicación del máximo:</b> {datos.get('localidad_max')}, {datos.get('provincia_max')} "
@@ -235,7 +236,7 @@ def generar_pdf(datos: dict, *, localidad: str, ambito: str) -> io.BytesIO:
         for _, row in expedientes_df.iterrows():
             story.append(Paragraph(
                 f"Expediente {row['expediente']}: {row['puntos']} puntos, "
-                f"máx {row['max_vm']:.2f} V/m, CCTE: {row['ccte']}.", styles["Normal"],
+                f"máx {formato.vm(row['max_vm'])} V/m, CCTE: {row['ccte']}.", styles["Normal"],
             ))
 
     pdf.build(story)

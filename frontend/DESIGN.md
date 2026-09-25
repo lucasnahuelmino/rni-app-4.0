@@ -150,6 +150,31 @@ desaparezca cambia el tamaño que Leaflet ya midió (no hace falta un
 distintas y tienen que distinguirse de un vistazo: `ErrorState` usa
 `.error-state`, `.empty-state` queda reservado para "no hay datos".
 
+## Decimales
+**La UI muestra exactamente los decimales que tiene la base, sin redondear.**
+Todo pasa por `src/format.js` (`fmtVm` / `fmtPct`); ningún componente llama a
+`toFixed()` por su cuenta.
+
+| Campo | Quién lo define | Decimales |
+|---|---|---|
+| `resultado_vm` | Instrumento, en pasos de 0,001 | **3**, los que hay |
+| `resultado_pct` | Calculado: `vm² / 3770 / límite × 100` | **4** de 17 |
+| Conteos (`mediciones`, `localidades`) | `COUNT(*)`, enteros | tal cual |
+
+Por qué: el 83,32 % de los V/m (183.160 de 219.818) tiene 3 decimales, así
+que con `.toFixed(2)` salía `0.942 → 0.94` y, peor, `0.001 → 0.00` y
+`0.005 → 0.01`. Con el % el caso era peor: `.toFixed(1)` cambiaba
+215.212 de 219.818 filas y dejaba `0,04022315030756169` como **`0,0 %`**,
+que se confunde con el contador de "resultados en cero" del Diagnóstico.
+
+Las dos funciones devuelven **números**, no strings: en el template se
+imprimen con la representación más corta que los reproduce exacto, así no
+quedan ceros de relleno (`19.260 → 19.26`, `0.000 → 0`).
+
+La contraparte en Python es `app/utils/formato.py`, que usa el mismo
+criterio para los informes Word/PDF. Si cambian los decimales, cambien en
+los dos lados.
+
 ## Accesibilidad
 - Los controles interactivos son `<button>`/`<input>` reales, nunca
   `<span @click>`: no hay nada clickeable que no sea alcanzable con Tab.
