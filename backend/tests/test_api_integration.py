@@ -54,8 +54,13 @@ def client(db_path, monkeypatch):
 
 
 def test_health(client):
-    resp = client.get("/api/health")
-    assert resp.status_code == 200
+    """Las dos rutas de estado responden lo mismo: `/api/health` es la de la
+    app y `/health` la que golpea el sondeo del entorno, que si no cae en
+    404 (ver main.py)."""
+    for ruta in ("/api/health", "/health"):
+        resp = client.get(ruta)
+        assert resp.status_code == 200, ruta
+        assert resp.json() == {"status": "ok"}, ruta
 
 
 def test_import_real_via_http_no_falla_por_threading(client):

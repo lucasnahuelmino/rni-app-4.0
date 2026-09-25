@@ -47,5 +47,17 @@ app.include_router(colors.router, prefix="/api", tags=["colors"])
 
 
 @app.get("/api/health")
+@app.get("/health")
 def health():
+    """Estado del servicio.
+
+    `/api/health` es el de la app: el que usan el frontend y los tests.
+
+    `/health` va además, y fuera del prefijo, porque algo fuera de la app
+    sondea `http://127.0.0.1:8000/health` cada pocos segundos y hasta ahora
+    caía en un 404: en los registros de uvicorn se ven esas respuestas
+    404 repetidas entre medio de las peticiones reales. Dos decoradores
+    sobre la misma función, así que es el mismo cuerpo sin lógica
+    duplicada.
+    """
     return {"status": "ok"}
