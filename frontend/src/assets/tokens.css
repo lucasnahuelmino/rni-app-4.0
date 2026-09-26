@@ -262,9 +262,9 @@ table {
 }
 
 /* Encabezado y contenido centrados en TODAS las columnas de TODAS las
-   tablas. Antes th/td iba a la izquierda y .num a la derecha, asi
+   tablas. Antes th/td iba a la izquierda y .num a la derecha, así
    en cada tabla las cabeceras quedaban pegadas a la izquierda contra
-   celdas pegadas a la derecha y el ojo no seguia la columna: un solo
+   celdas pegadas a la derecha y el ojo no seguía la columna: un solo
    alineamiento para los dos extremos. */
 th,
 td {
