@@ -7,8 +7,6 @@ integración): TestClient enruta las requests igual que un servidor real.
 import io
 
 import pandas as pd
-import pytest
-from fastapi.testclient import TestClient
 
 
 def _excel_bytes_estilo_enacom() -> bytes:
@@ -29,28 +27,6 @@ def _excel_bytes_estilo_enacom() -> bytes:
         df.to_excel(writer, index=False, startrow=8)
     buf.seek(0)
     return buf.read()
-
-
-@pytest.fixture()
-def client(db_path, monkeypatch):
-    """App real con TestClient, apuntando a una DB temporal (via env var,
-    ver app/core/config.py) -- nunca toca data/rni.db."""
-    monkeypatch.setenv("RNI_DB_PATH", str(db_path))
-    # Los módulos ya pueden estar importados de tests anteriores con el
-    # DB_PATH viejo "horneado" -- se recargan para que tomen el nuevo path.
-    import importlib
-    import app.core.config as config_module
-    import app.db.database as database_module
-    import app.core.deps as deps_module
-    import app.main as main_module
-
-    importlib.reload(config_module)
-    importlib.reload(database_module)
-    importlib.reload(deps_module)
-    importlib.reload(main_module)
-
-    with TestClient(main_module.app) as c:
-        yield c
 
 
 def test_health(client):

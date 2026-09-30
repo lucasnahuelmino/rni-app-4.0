@@ -1,22 +1,30 @@
 <script setup>
 import { ref, computed } from 'vue'
-import { localitiesApi } from '../services/domains'
+import { localitiesApi, reportsApi } from '../services/domains'
 import { fmtVm } from '../format'
 import { useFetchOnFiltros } from '../composables/useFetchOnFiltros'
+import { useFiltrosStore } from '../stores/filtros'
 import DataPanel from '../components/DataPanel.vue'
 import SemaforoBadge from '../components/SemaforoBadge.vue'
+
+const filtros = useFiltrosStore()
+
+// El Excel baja la MISMA tabla que se esta viendo: se arma con el store
+// activo, no con una copia, asi que si cambia un filtro el href cambia con el.
+const urlExcel = computed(() => reportsApi.excelResumenUrl(filtros))
 
 const { data: localidades, loading, error, reload } = useFetchOnFiltros(
   async (filtros) => (await localitiesApi.getLocalities(filtros)).data,
 )
 
-// Las 8 columnas de la tabla declaradas una sola vez: `tipo` decide cómo se
+// Las 9 columnas de la tabla declaradas una sola vez: `tipo` decide cómo se
 // compara (num resta, texto usa localeCompare) y `etiqueta` es lo que se
 // muestra, así que cabecera, orden y clase numérica no pueden desincronizarse.
 const COLUMNAS = [
   { campo: 'ccte', etiqueta: 'CCTE', tipo: 'texto' },
   { campo: 'provincia', etiqueta: 'Provincia', tipo: 'texto' },
   { campo: 'localidad', etiqueta: 'Localidad', tipo: 'texto' },
+  { campo: 'expedientes', etiqueta: 'Expediente(s)', tipo: 'texto' },
   { campo: 'mediciones', etiqueta: 'Mediciones', tipo: 'num' },
   { campo: 'resultado_max_vm', etiqueta: 'Máx. V/m', tipo: 'num' },
   { campo: 'resultado_max_pct', etiqueta: 'Nivel', tipo: 'num' },
@@ -71,7 +79,20 @@ function ariaSort(campo) {
 
 <template>
   <section class="panel">
-    <h2>Resumen por localidad</h2>
+    <div class="resumen__cabecera">
+      <h2>Resumen por localidad</h2>
+      <!-- El Excel baja exactamente la tabla filtrada que se esta mirando.
+           Sin filas no hay nada que bajar, asi que el enlace queda inerte en
+           vez de abrir una pestana con un 404. -->
+      <a
+        class="btn btn--ghost"
+        :href="urlExcel"
+        :aria-disabled="!localidades?.length ? 'true' : null"
+        @click="!localidades?.length && $event.preventDefault()"
+      >
+        Descargar Excel
+      </a>
+    </div>
     <DataPanel :loading="loading" :error="error" :empty="!localidades?.length" @reintentar="reload">
       <div class="tabla-scroll">
         <table>
@@ -101,6 +122,7 @@ function ariaSort(campo) {
               <td>{{ row.ccte }}</td>
               <td>{{ row.provincia }}</td>
               <td>{{ row.localidad }}</td>
+              <td>{{ row.expedientes || '—' }}</td>
               <td class="num">{{ row.mediciones }}</td>
               <td class="num">{{ row.resultado_max_vm != null ? fmtVm(row.resultado_max_vm) : '—' }}</td>
               <td><SemaforoBadge :pct="row.resultado_max_pct" /></td>
@@ -144,5 +166,24 @@ function ariaSort(campo) {
 .th-orden__flecha {
   font-size: 0.7em;
   color: var(--ink-soft);
+}
+
+/* Titulo y boton de descarga en la misma linea, sin que el boton empuje la
+   tabla ni se achique contra el h2. */
+.resumen__cabecera {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+/* Sin filas que bajar, el enlace no lleva a nada: se ve apagado y no se
+   puede apretar. aria-disabled en vez de disabled porque es un <a>. */
+.resumen__cabecera a[aria-disabled='true'] {
+  opacity: 0.5;
+  pointer-events: none;
+  cursor: not-allowed;
 }
 </style>

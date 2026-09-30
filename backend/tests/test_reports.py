@@ -30,8 +30,8 @@ def test_generar_word_y_pdf_no_escriben_a_disco(conn, tmp_path, monkeypatch):
     datos = reports_service.obtener_datos_informe(conn, "Buenos Aires", "Buenos Aires", "CABA")
     assert datos["total_puntos"] == 3
 
-    word_buffer = reports_service.generar_word(datos, localidad="CABA", ambito="Localidad")
-    pdf_buffer = reports_service.generar_pdf(datos, localidad="CABA", ambito="Localidad")
+    word_buffer = reports_service.generar_word(datos, ambito="Localidad", etiqueta="CABA")
+    pdf_buffer = reports_service.generar_pdf(datos, ambito="Localidad", etiqueta="CABA")
 
     assert word_buffer.getbuffer().nbytes > 0
     assert pdf_buffer.getbuffer().nbytes > 0

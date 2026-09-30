@@ -18,19 +18,31 @@ from __future__ import annotations
 import io
 import sqlite3
 from datetime import datetime, timezone
+from pathlib import Path
 
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from PIL import Image as PILImage
 import pandas as pd
 from docx import Document
-from reportlab.lib.pagesizes import A4
+from docx.shared import Inches
+from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import Image as RLImage
+from openpyxl import Workbook
+from openpyxl.drawing.image import Image as XLImage
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.utils import get_column_letter
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
 
 from app.calculations.dates import calcular_tiempo_trabajado_segundos, format_timedelta_long
 from app.utils import formato
+
+# Mismo PNG que encabeza la barra lateral en el frontend. El backend lleva
+# su propia copia porque los informes se arman acá: ningún Word, PDF o
+# Excel puede depender de un archivo del lado del cliente.
+LOGO = Path(__file__).resolve().parent.parent / "assets" / "logoenacom.png"
 
 
 def _armar_grafico_localidades_por_provincia_ccte(filas: list[dict]) -> io.BytesIO | None:
@@ -56,11 +68,30 @@ def _armar_grafico_localidades_por_provincia_ccte(filas: list[dict]) -> io.Bytes
     return buf
 
 
-def obtener_datos_informe(conn: sqlite3.Connection, ccte: str, provincia: str, localidad: str) -> dict:
+def obtener_datos_informe(conn: sqlite3.Connection, ccte: str, provincia: str,
+                           localidad: str) -> dict:
+    """Informes de UNA localidad."""
     filas = [dict(r) for r in conn.execute(
         "SELECT * FROM mediciones WHERE ccte = ? AND provincia = ? AND localidad = ?",
         (ccte, provincia, localidad),
     ).fetchall()]
+    return _construir_datos(filas)
+
+
+def obtener_datos_informe_ccte(conn: sqlite3.Connection, ccte: str) -> dict:
+    """Informes de TODO un centro (CCTE), con la misma salida de arriba."""
+    filas = [dict(r) for r in conn.execute(
+        "SELECT * FROM mediciones WHERE ccte = ?", (ccte,),
+    ).fetchall()]
+    return _construir_datos(filas)
+
+
+def _construir_datos(filas: list) -> dict:
+    """Arma el payload del informe a partir de las filas ya leídas.
+
+    Separado de la consulta a proposito: localidad y CCTE pasan por los
+    mismos calculos, asi que si cambia un agregado cambia para los dos
+    informes y no pueden divergir. `filas` viene de cualquier alcance."""
 
     df = pd.DataFrame(filas)
     if df.empty:
@@ -122,12 +153,17 @@ def obtener_datos_informe(conn: sqlite3.Connection, ccte: str, provincia: str, l
     }
 
 
-def generar_word(datos: dict, *, localidad: str, ambito: str) -> io.BytesIO:
+def generar_word(datos: dict, *, ambito: str, etiqueta: str) -> io.BytesIO:
     doc = Document()
+    # El mismo logo que encabeza el sidebar: el informe se lee con la
+    # identidad del sistema, no como un archivo suelto.
+    if LOGO.exists():
+        doc.add_picture(str(LOGO), width=Inches(2.1))
     doc.add_heading("Informe de Mediciones RNI", level=1)
     doc.add_paragraph(f"Ámbito del informe: {ambito}")
-    doc.add_paragraph(f"Localidad: {localidad}")
-    doc.add_paragraph(f"Fecha de generación: {datetime.now(timezone.utc).strftime('%d/%m/%Y %H:%M:%S')} UTC")
+    doc.add_paragraph(f"{ambito}: {etiqueta}")
+    doc.add_paragraph(f"Fecha de generación: "
+                      f"{datetime.now(timezone.utc).strftime('%d/%m/%Y %H:%M:%S')} UTC")
     doc.add_paragraph(f"Total de puntos medidos: {datos.get('total_puntos', 0)}")
 
     if datos.get("resultado_max_vm") is not None:
@@ -189,19 +225,25 @@ def generar_word(datos: dict, *, localidad: str, ambito: str) -> io.BytesIO:
     return buffer
 
 
-def generar_pdf(datos: dict, *, localidad: str, ambito: str) -> io.BytesIO:
+def generar_pdf(datos: dict, *, ambito: str, etiqueta: str) -> io.BytesIO:
     buffer = io.BytesIO()
     pdf = SimpleDocTemplate(buffer, pagesize=A4)
     styles = getSampleStyleSheet()
-    story = [
+    story = []
+    if LOGO.exists():
+        story.append(RLImage(str(LOGO), width=200, height=51))
+        story.append(Spacer(1, 10))
+    story += [
         Paragraph("Informe de Mediciones RNI", styles["Title"]),
         Spacer(1, 6),
         Paragraph(f"Ámbito del informe: {ambito}", styles["Heading2"]),
         Spacer(1, 12),
-        Paragraph(f"<b>Localidad:</b> {localidad}", styles["Normal"]),
-        Paragraph(f"<b>Fecha de generación:</b> {datetime.now(timezone.utc).strftime('%d/%m/%Y %H:%M:%S')} UTC",
+        Paragraph(f"<b>{ambito}:</b> {etiqueta}", styles["Normal"]),
+        Paragraph(f"<b>Fecha de generación:</b> "
+                  f"{datetime.now(timezone.utc).strftime('%d/%m/%Y %H:%M:%S')} UTC",
                   styles["Normal"]),
-        Paragraph(f"<b>Total de puntos medidos:</b> {datos.get('total_puntos', 0)}", styles["Normal"]),
+        Paragraph(f"<b>Total de puntos medidos:</b> {datos.get('total_puntos', 0)}",
+                  styles["Normal"]),
     ]
 
     if datos.get("resultado_max_vm") is not None:
@@ -213,6 +255,19 @@ def generar_pdf(datos: dict, *, localidad: str, ambito: str) -> io.BytesIO:
         story.append(Paragraph(
             f"<b>Ubicación del máximo:</b> {datos.get('localidad_max')}, {datos.get('provincia_max')} "
             f"(CCTE {datos.get('ccte_max')})", styles["Normal"],
+        ))
+
+    if datos.get("tiempo_trabajado_seg"):
+        story.append(Paragraph(
+            f"<b>Tiempo total estimado de medición:</b> "
+            f"{format_timedelta_long(datos['tiempo_trabajado_seg'])}",
+            styles["Normal"],
+        ))
+
+    if datos.get("sondas"):
+        story.append(Paragraph(
+            f"<b>Sondas utilizadas:</b> {', '.join(datos['sondas'])}",
+            styles["Normal"],
         ))
 
     story.append(Spacer(1, 16))
@@ -240,5 +295,357 @@ def generar_pdf(datos: dict, *, localidad: str, ambito: str) -> io.BytesIO:
             ))
 
     pdf.build(story)
+    buffer.seek(0)
+    return buffer
+
+
+# --- Excel ---------------------------------------------------------------
+#
+# Mismas columnas que la vista Resumen (frontend/src/views/ResumenView.vue,
+# su array COLUMNAS). Se declaran aca porque el archivo se arma en el
+# servidor, pero es la misma lista de la misma vista: si se agrega una, va
+# en los dos lados.
+#
+# Los tipos deciden el formato de la celda. "vm" y "pct" usan el mismo tope
+# de decimales que el frontend (3 y 4, ver frontend/src/format.js): esos son
+# los decimales que la base realmente tiene, asi que el formato muestra todo
+# lo que hay. El valor se guarda CRUDO en la celda y el formato solo decide
+# cuanto se ve -- no se redondea nada, que es la regla de decimales del
+# proyecto, y ademas quien copie la celda se lleva el numero exacto.
+COLUMNAS_RESUMEN = (
+    ("ccte", "CCTE", "texto"),
+    ("provincia", "Provincia", "texto"),
+    ("localidad", "Localidad", "texto"),
+    ("expedientes", "Expediente(s)", "texto"),
+    ("mediciones", "Mediciones", "entero"),
+    ("resultado_max_vm", "Máx. V/m", "vm"),
+    ("resultado_max_pct", "Nivel", "pct"),
+    ("fecha_inicio", "Inicio", "fecha"),
+    ("fecha_fin", "Fin", "fecha"),
+)
+
+# Formato de celda por tipo. '#' no rellena con ceros: 2.5 en '0.###'
+# se ve '2.5', igual que lo imprime la vista (parseFloat(toFixed(n))).
+FORMATOS_NUM = {
+    "entero": "#,##0",
+    "vm": "0.###",
+    "pct": "0.####",
+}
+
+# Azul del sidebar y del logo: el documento se lee como la app.
+AZUL = "FF0B1742"
+
+
+def _borde_tabla():
+    fino = Side(style="thin", color="FFB7BFD1")
+    return Border(left=fino, right=fino, top=fino, bottom=fino)
+
+
+def _encabezado_excel(ws, *, titulo, ambito=None, etiqueta=None,
+                      total_puntos=None, filtros=None):
+    """Logo y títulos del documento, iguales a los del Word y del PDF.
+
+    Devuelve la fila donde arranca la tabla.
+    """
+    fila = 1
+    if LOGO.exists():
+        ws.add_image(XLImage(str(LOGO)), "A1")
+        ws.row_dimensions[1].height = 46  # el logo mide 267x68 px
+        fila = 4  # deja las tres primeras filas libres bajo la imagen
+
+    def linea(texto, *, tam=11, negrita=True, color=AZUL):
+        nonlocal fila
+        c = ws.cell(row=fila, column=1, value=texto)
+        c.font = Font(bold=negrita, size=tam, color=color)
+        c.alignment = Alignment(horizontal="left", vertical="center")
+        fila += 1
+
+    linea(titulo, tam=16)
+    if ambito:
+        linea("Ámbito del informe: %s" % ambito, negrita=False)
+    if etiqueta:
+        linea("%s: %s" % (ambito, etiqueta), negrita=False)
+    if total_puntos is not None:
+        linea("Total de puntos medidos: %d" % total_puntos, negrita=False)
+    if filtros:
+        linea("Filtros aplicados: %s" % filtros, negrita=False)
+    linea("Fecha de generación: %s UTC" %
+          datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M:%S"), negrita=False)
+    return fila + 1
+
+
+def _pie_excel(ws, fila):
+    """El mismo pie que tiene el sidebar, para cerrar el documento."""
+    c = ws.cell(row=fila + 1, column=1,
+                value="Dirección Nacional de Control y Fiscalización")
+    c.font = Font(italic=True, size=9, color="FF5A6478")
+
+
+def _tabla_excel(ws, fila, cabeceras, filas, formatos=None):
+    """Escribe una tabla con el mismo estilo del resto de la app: banda de
+    encabezado en el azul del sidebar y contenido centrado, igual que la
+    regla de centrado de tokens.css. Devuelve la fila siguiente."""
+    borde = _borde_tabla()
+    for i, texto in enumerate(cabeceras, start=1):
+        c = ws.cell(row=fila, column=i, value=texto)
+        c.font = Font(bold=True, color="FFFFFFFF", size=10)
+        c.fill = PatternFill("solid", fgColor=AZUL)
+        c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        c.border = borde
+    ws.row_dimensions[fila].height = 26
+    fila += 1
+
+    for datos_fila in filas:
+        for i, valor in enumerate(datos_fila, start=1):
+            if type(valor).__module__.startswith("numpy"):
+                valor = valor.item()  # openpyxl no sabe guardar numpy.*
+            c = ws.cell(row=fila, column=i, value=valor)
+            c.alignment = Alignment(horizontal="center", vertical="center")
+            c.border = borde
+            if formatos and i in formatos and isinstance(valor, (int, float)):
+                c.number_format = formatos[i]
+        fila += 1
+    return fila
+
+
+def _ajustar_anchos(ws, tope=46):
+    """Ancho por columna según lo mas ancho que haya en ella, sin pasarse.
+   
+    Se lee toda la hoja y no solo la tabla: la columna A arrastra los
+    títulos, que son lo mas largo."""
+    for columna in ws.iter_cols():
+        ancho = 0
+        for c in columna:
+            if c.value is not None:
+                ancho = max(ancho, len(str(c.value)))
+        if ancho:
+            ws.column_dimensions[get_column_letter(columna[0].column)].width = \
+                min(ancho + 3, tope)
+
+
+def generar_excel_resumen(filas, *, filtros=None):
+    """Excel de la tabla de Resumen: una fila por localidad, con las
+    mismas columnas que muestra la vista (incluida Expediente(s)), el logo
+    y los títulos de siempre."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Resumen"
+
+    fila = _encabezado_excel(ws, titulo="Resumen de mediciones RNI",
+                              ambito="Resumen por localidad", filtros=filtros)
+
+    cabeceras = [etiqueta for _, etiqueta, _ in COLUMNAS_RESUMEN]
+    filas_excel = []
+    for d in filas:
+        valores = []
+        for campo, _, tipo in COLUMNAS_RESUMEN:
+            valor = d.get(campo)
+            if tipo == "fecha" and isinstance(valor, str):
+                valor = valor[:10]  # lo mismo que muestra la vista
+            valores.append(valor)
+        filas_excel.append(valores)
+
+    formatos = {i + 1: FORMATOS_NUM[tipo]
+                for i, (_, _, tipo) in enumerate(COLUMNAS_RESUMEN)
+                if tipo in FORMATOS_NUM}
+    fila = _tabla_excel(ws, fila, cabeceras, filas_excel, formatos)
+
+    _ajustar_anchos(ws)
+    _pie_excel(ws, fila)
+
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    return buffer
+
+
+def generar_excel_informe(datos, *, ambito, etiqueta):
+    """Excel del informe de una localidad o de un CCTE: los mismos bloques
+    del Word y del PDF (KPIs, grafico, desglose mensual, resumen por
+    expediente), para poder editarlos en planilla."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Informe"
+
+    fila = _encabezado_excel(ws, titulo="Informe de Mediciones RNI",
+                              ambito=ambito, etiqueta=etiqueta,
+                              total_puntos=datos.get("total_puntos"))
+
+    kpis = []
+    if datos.get("resultado_max_vm") is not None:
+        kpis.append(("Resultado máximo registrado",
+                     "%s V/m" % formato.vm(datos["resultado_max_vm"])))
+        if datos.get("resultado_max_pct") is not None:
+            kpis.append(("Nivel",
+                         "%s %% del límite" % formato.pct(datos["resultado_max_pct"])))
+        kpis.append(("Ubicación del máximo",
+                     "%s, %s (CCTE %s)" % (datos.get("localidad_max"),
+                                             datos.get("provincia_max"),
+                                             datos.get("ccte_max"))))
+    if datos.get("tiempo_trabajado_seg"):
+        kpis.append(("Tiempo total de medición",
+                     format_timedelta_long(datos["tiempo_trabajado_seg"])))
+    if datos.get("sondas"):
+        kpis.append(("Sondas utilizadas", ", ".join(datos["sondas"])))
+    if kpis:
+        fila = _tabla_excel(ws, fila, ["Dato", "Valor"], kpis)
+        fila += 1
+
+    grafico = datos.get("grafico")
+    if grafico is not None:
+        try:
+            img = XLImage(grafico)
+            img.width, img.height = 720, 420  # el original es 6x3.5 in
+            ws.add_image(img, "A%d" % fila)
+            ws.row_dimensions[fila].height = 315
+            fila += 22  # 420 px a ~20 px por fila
+            fila += 1
+        except Exception:  # noqa: BLE001
+            # Un grafico que no se puede insertar no tiene por que tumbar
+            # la descarga del resto del informe.
+            pass
+
+    resumen_mensual = datos.get("resumen_mensual")
+    if resumen_mensual is not None and not resumen_mensual.empty:
+        c = ws.cell(row=fila, column=1, value="Desglose mensual")
+        c.font = Font(bold=True, size=12, color=AZUL)
+        fila += 1
+        filas_mes = [[r["mes"], int(r["puntos"]), r["horas"],
+                      str(r["fecha_inicio"])[:19], str(r["fecha_fin"])[:19]]
+                     for _, r in resumen_mensual.iterrows()]
+        fila = _tabla_excel(
+            ws, fila,
+            ["Mes", "Puntos", "Horas trabajadas", "Fecha inicio", "Fecha fin"],
+            filas_mes, {2: FORMATOS_NUM["entero"]},
+        )
+        fila += 1
+
+    expedientes_df = datos.get("expedientes_df")
+    if expedientes_df is not None and not expedientes_df.empty:
+        c = ws.cell(row=fila, column=1, value="Resumen por expediente")
+        c.font = Font(bold=True, size=12, color=AZUL)
+        fila += 1
+        filas_exp = [[r["expediente"], int(r["puntos"]), float(r["max_vm"]),
+                      r["ccte"], r["provincias"], r["localidades"]]
+                     for _, r in expedientes_df.iterrows()]
+        fila = _tabla_excel(
+            ws, fila,
+            ["Expediente", "Puntos", "Máx. V/m", "CCTE", "Provincias", "Localidades"],
+            filas_exp,
+            {2: FORMATOS_NUM["entero"], 3: FORMATOS_NUM["vm"]},
+        )
+
+    _ajustar_anchos(ws)
+    _pie_excel(ws, fila)
+
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    return buffer
+
+
+def generar_pdf_mapa(imagen_png, *, titulo, notas):
+    """PDF de una captura del mapa: lo que se ve en pantalla, que ya
+    incluye o no los filtros globales segun lo que este marcado en la barra
+    de controles.
+
+    El encabezado (logo, titulo y notas) se DIBUJA en el callback y no va como
+    flowable: asi el espacio que ocupa es exactamente el margen superior
+    reservado y la imagen, unica del story, mide lo mismo que el frame. Eso
+    era lo que tiraba LayoutError cuando la captura quedaba apenas mas alta
+    que la caja y reportlab intentaba pasarla a la pagina siguiente.
+    """
+    buffer = io.BytesIO()
+    # El mapa es apaisado: en A4 vertical quedaba media pagina en blanco.
+    pagina = landscape(A4)
+    margen = 18
+    alto_encabezado = 110
+    pdf = SimpleDocTemplate(
+        buffer,
+        pagesize=pagina,
+        leftMargin=margen,
+        rightMargin=margen,
+        topMargin=alto_encabezado,
+        bottomMargin=margen,
+    )
+
+    with PILImage.open(io.BytesIO(imagen_png)) as img_abierta:
+        ancho, alto = img_abierta.size
+
+    # pdf.width y pdf.height ya descuentan los margenes, asi que la imagen
+    # entra siempre: primero por ancho, despues por alto si la captura es
+    # alta (una captura vertical tampoco puede salirse de la pagina).
+    # El frame util deja 6pt de padding por lado que pdf.width/pdf.height no
+    # descuentan: sin restarlos la captura quedaba un pelito mas alta que la
+    # caja y reportlab seguia tirando LayoutError.
+    util_w = pdf.width - 12
+    util_h = pdf.height - 12
+    escala = min(util_w / ancho, util_h / alto)
+    story = [RLImage(io.BytesIO(imagen_png),
+                     width=ancho * escala, height=alto * escala,
+                     hAlign="CENTER")]
+
+    def encabezado(canvas, doc):
+        canvas.saveState()
+        x = margen
+        y_logo = pagina[1] - margen - 33
+        if LOGO.exists():
+            canvas.drawImage(str(LOGO), x, y_logo, 130, 33,
+                             mask="auto", anchor="nw")
+            x_titulo = margen + 130 + 14
+        else:
+            x_titulo = margen
+
+        canvas.setFillColor("#0B1742")
+        canvas.setFont("Helvetica-Bold", 16)
+        canvas.drawString(x_titulo, y_logo + 10, titulo)
+
+        # Las notas se acomodan en el aire que deja el margen superior; si
+        # no entran, se cortan (nunca pisan el mapa).
+        canvas.setFillColor("#5A6478")
+        canvas.setFont("Helvetica-Oblique", 8)
+        ancho_notas = pagina[0] - 2 * margen
+        y = y_logo - 15
+        y_min = pagina[1] - alto_encabezado + 12
+        pendientes = list(notas)
+        dibujadas = 0
+        cortadas = 0
+        while pendientes and y > y_min:
+            linea_actual = pendientes[0]
+            linea = ""
+            for palabra in linea_actual.split():
+                prueba = (linea + " " + palabra).strip()
+                if canvas.stringWidth(prueba, "Helvetica-Oblique", 8) <= ancho_notas:
+                    linea = prueba
+                else:
+                    if linea:
+                        break
+                    linea = palabra
+            resto = linea_actual[len(linea):].strip()
+            if resto:
+                pendientes[0] = resto
+            else:
+                pendientes.pop(0)
+            canvas.drawString(x, y, linea)
+            y -= 11
+            dibujadas += 1
+        if pendientes:
+            cortadas = len(pendientes)
+        if cortadas:
+            canvas.drawString(x, y, f"(y {cortadas} nota(s) mas, sin espacio)")
+
+        # Pie: va por debajo del frame, en el margen inferior.
+        canvas.setFillColor("#8A93A5")
+        canvas.setFont("Helvetica", 7)
+        canvas.drawString(margen, 7,
+                          "Dirección Nacional de Control y Fiscalización")
+        canvas.drawRightString(pagina[0] - margen, 7,
+                               datetime.now(timezone.utc)
+                               .strftime("%d/%m/%Y %H:%M:%S UTC"))
+        canvas.restoreState()
+
+    # onLaterPages por las dudas: si la captura no entrase en la primera
+    # hoja, la segunda tambien tendria que salir con su encabezado.
+    pdf.build(story, onFirstPage=encabezado, onLaterPages=encabezado)
     buffer.seek(0)
     return buffer

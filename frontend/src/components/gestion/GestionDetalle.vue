@@ -19,6 +19,9 @@ const urlWord = computed(() =>
 const urlPdf = computed(() =>
   reportsApi.pdfUrl(props.localidad.ccte, props.localidad.provincia, props.localidad.localidad, 'Localidad'),
 )
+const urlExcel = computed(() =>
+  reportsApi.excelUrl(props.localidad.ccte, props.localidad.provincia, props.localidad.localidad, 'Localidad'),
+)
 </script>
 
 <template>
@@ -38,6 +41,7 @@ const urlPdf = computed(() =>
       </p>
     </div>
     <div class="gestion__acciones">
+      <a class="btn btn--ghost" :href="urlExcel">Exportar Excel</a>
       <a class="btn btn--ghost" :href="urlWord">Exportar Word</a>
       <a class="btn btn--ghost" :href="urlPdf">Exportar PDF</a>
     </div>

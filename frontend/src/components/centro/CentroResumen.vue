@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 
-import { chartsApi, kpisApi, localitiesApi, tiemposApi } from '../../services/domains'
+import { chartsApi, kpisApi, localitiesApi, reportsApi, tiemposApi } from '../../services/domains'
 import { fmtPct, fmtVm } from '../../format'
 import { useFetchOnFiltros } from '../../composables/useFetchOnFiltros'
 import { useFiltrosStore } from '../../stores/filtros'
@@ -90,6 +90,7 @@ const metrica = computed(() => METRICAS[metricaRanking.value] ?? METRICAS.result
               <th>Provincias</th>
               <th>Tiempo trabajado</th>
               <th>Días con medición</th>
+              <th>Exportar</th>
             </tr>
           </thead>
           <tbody>
@@ -100,6 +101,14 @@ const metrica = computed(() => METRICAS[metricaRanking.value] ?? METRICAS.result
               <td class="num">{{ c.provincias }}</td>
               <td class="num">{{ c.tiempo_trabajado_fmt }}</td>
               <td class="num">{{ c.dias_con_medicion }}</td>
+              <!-- Las mismas tres opciones que tiene una localidad en
+                   Gestion, pero con alcance de centro: el archivo junta
+                   todas las localidades del CCTE. -->
+              <td class="resumen__export">
+                <a class="btn btn--ghost resumen__export-btn" :href="reportsApi.excelCcteUrl(c.ccte)">Excel</a>
+                <a class="btn btn--ghost resumen__export-btn" :href="reportsApi.wordCcteUrl(c.ccte)">Word</a>
+                <a class="btn btn--ghost resumen__export-btn" :href="reportsApi.pdfCcteUrl(c.ccte)">PDF</a>
+              </td>
             </tr>
           </tbody>
         </table>
@@ -239,5 +248,18 @@ const metrica = computed(() => METRICAS[metricaRanking.value] ?? METRICAS.result
   white-space: nowrap;
   font-size: 0.75rem;
   color: var(--ink-soft);
+}
+
+/* Tres botones en la ultima columna sin que la tabla se ensanche: van
+   apretados y chicos, pero con el mismo estilo que el resto de la app. */
+.resumen__export {
+  white-space: nowrap;
+  text-align: center;
+}
+
+.resumen__export-btn {
+  font-size: 0.7rem;
+  padding: 0.18rem 0.45rem;
+  margin: 0 0.1rem;
 }
 </style>

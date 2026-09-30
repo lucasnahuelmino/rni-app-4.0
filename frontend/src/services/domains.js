@@ -79,8 +79,29 @@ export const importsApi = {
 }
 
 export const reportsApi = {
+  // --- de una localidad: las tres opciones de Gestion ---
   wordUrl: (ccte, provincia, localidad, ambito) =>
     `${api.defaults.baseURL}/reports/word?${new URLSearchParams({ ccte, provincia, localidad, ambito }).toString()}`,
   pdfUrl: (ccte, provincia, localidad, ambito) =>
     `${api.defaults.baseURL}/reports/pdf?${new URLSearchParams({ ccte, provincia, localidad, ambito }).toString()}`,
+  excelUrl: (ccte, provincia, localidad, ambito) =>
+    `${api.defaults.baseURL}/reports/excel/localidad?${new URLSearchParams({ ccte, provincia, localidad, ambito }).toString()}`,
+
+  // --- de un CCTE entero: las tres opciones del Centro operativo ---
+  wordCcteUrl: (ccte) =>
+    `${api.defaults.baseURL}/reports/word/ccte?${new URLSearchParams({ ccte }).toString()}`,
+  pdfCcteUrl: (ccte) =>
+    `${api.defaults.baseURL}/reports/pdf/ccte?${new URLSearchParams({ ccte }).toString()}`,
+  excelCcteUrl: (ccte) =>
+    `${api.defaults.baseURL}/reports/excel/ccte?${new URLSearchParams({ ccte }).toString()}`,
+
+  // --- la tabla de Resumen, con los filtros que el usuario esta viendo ---
+  // Reutiliza filtrosParams y no un objeto plano: ccte es multi-select y un
+  // objeto se quedaria solo con el ultimo valor (ver el comentario de arriba).
+  excelResumenUrl: (filtros) =>
+    `${api.defaults.baseURL}/reports/excel?${filtrosParams(filtros).toString()}`,
+
+  // Unico POST del bloque: sube la captura del mapa y devuelve el PDF.
+  // responseType blob porque es un archivo, no JSON.
+  postMapPdf: (payload) => api.post('/reports/map-pdf', payload, { responseType: 'blob' }),
 }
