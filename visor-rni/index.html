@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RNI · Visor de datos</title>
+
+<link rel="stylesheet" href="css/fuentes.css">
+<link rel="stylesheet" href="css/visor.css">
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+
+<!-- Librerías como scripts clásicos: los módulos ES no cargan sobre file://,
+     estas sí. Ninguna sale de internet: todo está en vendor/. -->
+<script src="vendor/sql-wasm.js"></script>
+<script src="vendor/xlsx.full.min.js"></script>
+<script src="vendor/leaflet/leaflet.js"></script>
+
+<script>
+  /* Si abrieron index.html con doble clic (file://), el navegador bloquea los
+     módulos ES por CORS y la app no arranca. A los 2,5 s, si todavía no
+     arrancó y el protocolo es file://, mostramos el aviso con la salida. */
+  window.__visorListo = false;
+  setTimeout(function () {
+    if (!window.__visorListo && location.protocol === 'file:') {
+      var a = document.getElementById('aviso-file');
+      if (a) a.hidden = false;
+    }
+  }, 2500);
+</script>
+</head>
+
+<body>
+
+<div id="aviso-file" class="aviso-file" hidden>
+  <strong>Tu navegador bloqueó el visor por abrirlo con doble clic (file://).</strong>
+  <span>Los módulos ES y el motor SQLite no pueden cargarse desde el disco.
+  Doble clic en <code>iniciar.bat</code> y se abre solo en el navegador.</span>
+</div>
+
+<div class="shell">
+
+  <!-- ================= cabecera con los logos ================= -->
+  <header class="cabecera">
+    <div class="cabecera__logos">
+      <img class="cabecera__logo" data-logo src="assets/logoenacom.png" alt="ENACOM">
+      <span class="cabecera__pipe" data-logo-dos></span>
+      <img class="cabecera__logo" data-logo-dos src="assets/logo-secundario.png" alt="">
+    </div>
+    <div class="cabecera__titulo">
+      <span class="cabecera__nombre">Visor RNI</span>
+      <span class="cabecera__detalle">Radiaciones no Ionizantes · consulta en modo lectura</span>
+    </div>
+    <div class="cabecera__estado">
+      <span class="pastilla" id="pastilla-base">Sin base cargada</span>
+    </div>
+  </header>
+
+  <!-- ================= barra lateral oscura ================= -->
+  <aside class="sidebar">
+    <nav class="sidebar__nav" aria-label="Vistas">
+      <button class="navitem navitem--activo" data-vista="inicio" disabled>
+        <span class="navitem__icono" aria-hidden="true">⌂</span> Inicio
+      </button>
+      <button class="navitem" data-vista="localidades" disabled>
+        <span class="navitem__icono" aria-hidden="true">▤</span> Localidades
+      </button>
+      <button class="navitem" data-vista="horarios" disabled>
+        <span class="navitem__icono" aria-hidden="true">◷</span> Por horarios
+      </button>
+      <button class="navitem" data-vista="resumenes" disabled>
+        <span class="navitem__icono" aria-hidden="true">▥</span> Resúmenes
+      </button>
+      <button class="navitem" data-vista="mapa" disabled>
+        <span class="navitem__icono" aria-hidden="true">⬢</span> Mapa
+      </button>
+    </nav>
+
+    <div class="sidebar__base" id="sidebar-base">
+      <p class="sidebar__etiqueta">Base cargada</p>
+      <p class="sidebar__archivo num" id="sidebar-archivo">—</p>
+      <dl class="sidebar__datos">
+        <div><dt>Mediciones</dt><dd class="num" id="sidebar-mediciones">—</dd></div>
+        <div><dt>Localidades</dt><dd class="num" id="sidebar-localidades">—</dd></div>
+        <div><dt>Tablas</dt><dd class="num" id="sidebar-tablas">—</dd></div>
+      </dl>
+      <button class="btn btn--fantasma" id="btn-cambiar">Cambiar archivo</button>
+      <p class="sidebar__nota">Lectura única: el archivo no se abre para escribir.</p>
+    </div>
+  </aside>
+
+  <!-- ================= panel de contenido ================= -->
+  <main class="panel">
+
+    <!-- ---------- pantalla de carga ---------- -->
+    <section class="carga" id="pantalla-carga">
+      <div class="carga__zona" id="zona-arrastre">
+        <div class="carga__icono" aria-hidden="true">⌸</div>
+        <h2>Cargá la base <span class="num">rni.db</span></h2>
+        <p>Arrastrá el archivo acá o elegilo desde el disco. Se lee entero en tu
+           navegador con SQLite (WASM): no se sube a ningún lado ni se modifica.</p>
+        <!-- el input vive afuera (al final del body) para que el botón
+             "Cambiar archivo" del sidebar también pueda abrirlo -->
+        <label class="btn btn--primario btn--grande" for="input-archivo">Elegir archivo</label>
+        <p class="carga__alternativa">También podés servirlo por HTTP con
+           <code>iniciar.bat</code>.</p>
+        <p class="error" id="error-carga" hidden></p>
+        <p class="carga__progreso num" id="progreso-carga" hidden></p>
+      </div>
+    </section>
+
+    <!-- ---------- Vista 0: Inicio (tarjetas de la app original) ---------- -->
+    <section class="vista" id="vista-inicio" hidden>
+      <header class="vista__cabecera">
+        <div>
+          <h2>Inicio</h2>
+          <p class="vista__bajada">Totales de la base, pico máximo registrado y
+             mediciones por Centro de Comprobación Técnica de Emisiones.</p>
+        </div>
+        <div class="vista__acciones">
+          <span class="contador num" id="ini-contador">—</span>
+          <button class="btn btn--primario" id="ini-exportar">Exportar a Excel</button>
+        </div>
+      </header>
+
+      <p class="error" id="ini-error" hidden></p>
+
+      <div class="kpis" id="ini-kpis">
+        <article class="kpi">
+          <p class="kpi__etiqueta">Registros totales</p>
+          <p class="kpi__valor num" id="ini-registros">—</p>
+        </article>
+        <article class="kpi">
+          <p class="kpi__etiqueta">Localidades</p>
+          <p class="kpi__valor num" id="ini-localidades">—</p>
+        </article>
+        <article class="kpi">
+          <p class="kpi__etiqueta">Provincias</p>
+          <p class="kpi__valor num" id="ini-provincias">—</p>
+        </article>
+        <article class="kpi">
+          <p class="kpi__etiqueta">Centros (CCTE)</p>
+          <p class="kpi__valor num" id="ini-centros">—</p>
+        </article>
+        <article class="kpi">
+          <p class="kpi__etiqueta">Promedio del límite</p>
+          <p class="kpi__valor num"><span id="ini-promedio">—</span>
+             <span class="kpi__unidad" id="ini-promedio-unidad">%</span></p>
+        </article>
+      </div>
+
+      <article class="tarjeta tarjeta--pico" id="tarjeta-pico" hidden>
+        <p class="kpi__etiqueta">Pico máximo registrado</p>
+        <p class="pico">
+          <span class="pico__valor num" id="pico-valor">—</span>
+          <span class="pico__lugar" id="pico-lugar">—</span>
+          <span class="pico__ccte" id="pico-ccte">—</span>
+          <span class="pico__sello" id="pico-sello"></span>
+        </p>
+        <p class="tarjeta__nota" id="pico-fecha">—</p>
+      </article>
+
+      <div class="seccion">
+        <h3 class="seccion__titulo">Mediciones por Centro de Comprobación
+           Técnica de Emisiones</h3>
+        <div class="ccte-grilla" id="ini-ccte"></div>
+      </div>
+    </section>
+
+    <!-- ---------- Vista 1: Localidades ---------- -->
+    <section class="vista" id="vista-localidades" hidden>
+      <header class="vista__cabecera">
+        <div>
+          <h2>Localidades</h2>
+          <p class="vista__bajada">Resumen por localidad: cantidad de mediciones,
+             máximo y promedio del % de RNI, y período medido.</p>
+        </div>
+        <div class="vista__acciones">
+          <span class="contador num" id="loc-contador">—</span>
+          <input type="search" class="campo campo--buscar" id="loc-busqueda"
+                 placeholder="Buscar localidad, provincia o CCTE…" autocomplete="off">
+          <button class="btn btn--primario" id="loc-exportar">Exportar a Excel</button>
+        </div>
+      </header>
+
+      <div class="tabla__marco">
+        <table class="tabla" id="loc-tabla">
+          <thead>
+            <tr>
+              <th class="ordenar" data-col="ccte">CCTE <span class="ordenar__flecha"></span></th>
+              <th class="ordenar" data-col="provincia">Provincia <span class="ordenar__flecha"></span></th>
+              <th class="ordenar" data-col="localidad">Localidad <span class="ordenar__flecha"></span></th>
+              <th class="ordenar num" data-col="mediciones">Mediciones <span class="ordenar__flecha"></span></th>
+              <th class="ordenar num" data-col="resultado_max_pct">Máx % RNI <span class="ordenar__flecha"></span></th>
+              <th class="ordenar num" data-col="resultado_max_vm">Máx V/m <span class="ordenar__flecha"></span></th>
+              <th class="ordenar num" data-col="resultado_prom_pct">Prom % <span class="ordenar__flecha"></span></th>
+              <th class="num">Primer día</th>
+              <th class="num">Último día</th>
+              <th class="num">Días</th>
+              <th class="num">Tiempo</th>
+              <th>Expediente(s)</th>
+              <th>Sonda(s)</th>
+            </tr>
+          </thead>
+          <tbody id="loc-cuerpo"></tbody>
+        </table>
+      </div>
+      <p class="vacio" id="loc-vacio" hidden>Ninguna localidad coincide con la búsqueda.</p>
+    </section>
+
+    <!-- ---------- Vista 2: Por horarios ---------- -->
+    <section class="vista" id="vista-horarios" hidden>
+      <header class="vista__cabecera">
+        <div>
+          <h2>Por horarios</h2>
+          <p class="vista__bajada">Medición por medida, con fecha y hora exactas.</p>
+        </div>
+        <div class="vista__acciones">
+          <span class="contador num" id="hor-contador">—</span>
+          <button class="btn btn--primario" id="hor-exportar">Exportar a Excel</button>
+        </div>
+      </header>
+
+      <div class="filtros">
+        <label class="filtros__campo">
+          <span>Localidad</span>
+          <select class="campo" id="hor-localidad">
+            <option value="">Todas</option>
+          </select>
+        </label>
+        <label class="filtros__campo">
+          <span>Desde</span>
+          <input type="date" class="campo" id="hor-desde">
+        </label>
+        <label class="filtros__campo">
+          <span>Hasta</span>
+          <input type="date" class="campo" id="hor-hasta">
+        </label>
+        <label class="filtros__campo filtros__campo--crece">
+          <span>Buscar</span>
+          <input type="search" class="campo" id="hor-busqueda"
+                 placeholder="Localidad, provincia, CCTE, sonda o expediente…" autocomplete="off">
+        </label>
+        <button class="btn btn--secundario" id="hor-limpiar">Limpiar</button>
+      </div>
+
+      <div class="tabla__marco tabla__marco--alta">
+        <table class="tabla" id="hor-tabla">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Hora</th>
+              <th>CCTE</th>
+              <th>Provincia</th>
+              <th>Localidad</th>
+              <th class="num">V/m</th>
+              <th class="num">% RNI</th>
+              <th class="num">Nivel</th>
+              <th>Sonda</th>
+              <th class="num">Latitud</th>
+              <th class="num">Longitud</th>
+            </tr>
+          </thead>
+          <tbody id="hor-cuerpo"></tbody>
+        </table>
+      </div>
+      <p class="vacio" id="hor-vacio" hidden>Ninguna medición coincide con los filtros.</p>
+
+      <footer class="paginacion" id="hor-paginacion">
+        <button class="btn btn--secundario" data-pag="primera">⏮ Primera</button>
+        <button class="btn btn--secundario" data-pag="anterior">◀ Anterior</button>
+        <span class="paginacion__estado num" id="hor-estado">—</span>
+        <button class="btn btn--secundario" data-pag="siguiente">Siguiente ▶</button>
+        <button class="btn btn--secundario" data-pag="ultima">Última ⏭</button>
+        <label class="filtros__campo filtros__campo--linea">
+          <span>Filas por página</span>
+          <select class="campo" id="hor-porpagina">
+            <option>50</option>
+            <option selected>100</option>
+            <option>200</option>
+            <option>500</option>
+          </select>
+        </label>
+      </footer>
+    </section>
+
+    <!-- ---------- Vista 4: Resúmenes (centro / mes / año / provincia / general) ---------- -->
+    <section class="vista" id="vista-resumenes" hidden>
+      <header class="vista__cabecera">
+        <div>
+          <h2>Resúmenes</h2>
+          <p class="vista__bajada">Tiempos trabajados y agregados de la base:
+             por centro, por mes, por año, por provincia y en general.</p>
+        </div>
+        <div class="vista__acciones">
+          <span class="contador num" id="res-contador">—</span>
+          <button class="btn btn--primario" id="res-exportar">Exportar a Excel</button>
+        </div>
+      </header>
+
+      <div class="pestanas" role="tablist" aria-label="Tipo de resumen">
+        <button class="pestania pestania--activa" data-pestania="centro"
+                role="tab" aria-selected="true">Por centro</button>
+        <button class="pestania" data-pestania="mes" role="tab"
+                aria-selected="false">Por mes</button>
+        <button class="pestania" data-pestania="anio" role="tab"
+                aria-selected="false">Por año</button>
+        <button class="pestania" data-pestania="provincia" role="tab"
+                aria-selected="false">Por provincia</button>
+        <button class="pestania" data-pestania="provincia_ccte" role="tab"
+                aria-selected="false">Provincia y CCTE</button>
+        <button class="pestania" data-pestania="general" role="tab"
+                aria-selected="false">En general</button>
+      </div>
+
+      <div class="tabla__marco tabla__marco--resumenes">
+        <table class="tabla" id="res-tabla">
+          <thead id="res-cabecera"></thead>
+          <tbody id="res-cuerpo"></tbody>
+        </table>
+      </div>
+      <p class="vacio" id="res-vacio" hidden></p>
+    </section>
+
+    <!-- ---------- Vista 3: Mapa ---------- -->
+    <section class="vista vista--mapa" id="vista-mapa" hidden>
+      <header class="vista__cabecera">
+        <div>
+          <h2>Mapa</h2>
+          <p class="vista__bajada">Punto máximo de cada localidad, coloreado por
+             nivel con la etiqueta del tramo.</p>
+        </div>
+        <div class="vista__acciones">
+          <span class="contador num" id="mapa-contador">—</span>
+          <button class="btn btn--secundario" id="mapa-png">Descargar PNG</button>
+          <button class="btn btn--primario" id="mapa-exportar">Exportar a Excel</button>
+        </div>
+      </header>
+
+      <div class="mapa">
+        <div class="mapa__lienzo" id="mapa-leaflet" hidden></div>
+        <canvas class="mapa__lienzo" id="mapa-canvas" hidden></canvas>
+        <ul class="leyenda" id="leyenda" aria-label="Leyenda de niveles"></ul>
+      </div>
+      <p class="nota" id="mapa-nota" hidden></p>
+    </section>
+
+  </main>
+</div>
+
+<!-- tooltip compartido por el mapa (Leaflet y el fallback en canvas) -->
+<div class="tooltip" id="tooltip" hidden></div>
+
+<!-- aviso flotante de errores -->
+<div class="toast" id="toast" hidden></div>
+
+<input type="file" id="input-archivo" accept=".db,.sqlite,.sqlite3,.db3" hidden>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
