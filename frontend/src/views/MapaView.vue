@@ -268,7 +268,6 @@ function onLocalidadInput() {
   debounceBusqueda = setTimeout(cargarPuntos, 400)
 }
 
-
 // --- salida impresa del mapa -------------------------------------------------
 
 // Leaflet pinta con tiles + SVG, que no se pueden copiar a un archivo: para
@@ -348,10 +347,10 @@ function dibujarLeyenda(ctx) {
   const rangos = escala.rangos || []
   if (!rangos.length) return
   const items = rangos.length + 1 // +1 por "Sin dato"
-  const ancho = 210
-  const alto = 26 + items * 19 + 8
-  const x = 14
-  const y = ctx.canvas.height - alto - 14
+  const ancho = 130
+  const alto = 30 + items * 15
+  const x = 8
+  const y = ctx.canvas.height - alto - 8
 
   ctx.save()
   ctx.globalAlpha = 0.95
@@ -368,19 +367,19 @@ function dibujarLeyenda(ctx) {
   ctx.textBaseline = 'middle'
   ctx.fillStyle = '#0B1742'
   ctx.font = '600 11px system-ui, sans-serif'
-  ctx.fillText('% del limite normativo', x + 12, y + 15)
+  ctx.fillText('% del límite normativo', x + 7, y + 15)
 
   const pintar = (cy, color, texto) => {
     ctx.beginPath()
-    ctx.arc(x + 17, cy, 5, 0, Math.PI * 2)
+    ctx.arc(x + 11, cy, 5, 0, Math.PI * 2)
     ctx.fillStyle = color
     ctx.fill()
     ctx.fillStyle = '#0B1742'
     ctx.font = '11px system-ui, sans-serif'
-    ctx.fillText(texto, x + 30, cy)
+    ctx.fillText(texto, x + 19, cy)
   }
-  rangos.forEach((r, i) => pintar(y + 34 + i * 19, r.color, r.etiqueta))
-  pintar(y + 34 + rangos.length * 19, escala.colorPorPct(null), 'Sin dato')
+  rangos.forEach((r, i) => pintar(y + 30 + i * 15, r.color, r.etiqueta))
+  pintar(y + 30 + rangos.length * 15, escala.colorPorPct(null), 'Sin dato')
   ctx.restore()
 }
 
@@ -624,20 +623,14 @@ function imprimirMapa() {
         role="list"
         aria-label="Referencia de niveles (% del límite normativo)"
       >
+        <span class="mapa-leyenda__titulo">% del límite normativo</span>
         <span
           v-for="r in escala.rangos"
           :key="r.etiqueta"
           class="mapa-leyenda__item"
-          :class="{ 'mapa-leyenda__item--alerta': r.hasta == null }"
           role="listitem"
         >
           <span class="mapa-leyenda__dot" :style="{ background: r.color }"></span>{{ r.etiqueta }}
-          <!-- El único rango abierto (hasta == null) no es "un escalón más
-               de la escala" sino una excedencia de la MEP: puntos que el
-               área técnica revisa después y en detalle. Se marca con texto
-               y no solo con color, que es la regla del semáforo de la UI
-               (ver DESIGN.md, --risk-high). -->
-          <span v-if="r.hasta == null" class="mapa-leyenda__aviso">excede la MEP</span>
         </span>
         <span class="mapa-leyenda__item" role="listitem">
           <!-- colorPorPct(null) en vez de un hex suelto: es la misma fuente
@@ -853,36 +846,32 @@ function imprimirMapa() {
 .mapa-leyenda {
   left: var(--space-4);
   bottom: var(--space-4);
+  /* Una columna y no una franja: tapa mucho menos mapa y es la misma
+     disposicion que lleva la captura impresa, asi la imagen exportada
+     coincide con lo que se ve en pantalla. */
   display: flex;
-  gap: var(--space-6);
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  line-height: 1.15;
   font-size: var(--fs-2xs);
-  padding: var(--space-3) var(--space-4);
-  /* deja libre la columna derecha para las notas, para que no se pisen */
-  max-width: calc(100% - 340px);
+  padding: var(--space-2) var(--space-3);
+  /* ancho acotado: con la columna no hace falta dejar libre la derecha
+     (las notas flotan arriba y no se pisan), pero no debe crecer */
+  max-width: min(230px, calc(100% - 2 * var(--space-4)));
+}
+
+.mapa-leyenda__titulo {
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: var(--space-1);
 }
 
 .mapa-leyenda__item {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: var(--space-3);
   white-space: nowrap;
-}
-
-/* El rango abierto (≥100 %) no es "el último escalón de la escala": es una
-   excedencia de la MEP, que el área técnica revisa después y en detalle. Se
-   le agrega texto propio en forma de pastilla -- --risk-high pasa WCAG AA
-   sobre --surface, y la regla del semáforo de la UI es que NUNCA haya
-   información solo por color (ver DESIGN.md). Así la leyenda no puede
-   presentar un límite normativo como si fuera simplemente "el rojo más
-   fuerte". */
-.mapa-leyenda__aviso {
-  font-weight: 600;
-  color: var(--risk-high);
-  padding: 1px var(--space-3);
-  border: 1px solid color-mix(in srgb, var(--risk-high) 35%, transparent);
-  background: color-mix(in srgb, var(--risk-high) 7%, var(--surface));
-  border-radius: var(--radius-full);
 }
 
 .mapa-leyenda__dot {
