@@ -48,15 +48,20 @@ watch(() => props.datos, render)
 <template>
   <div class="chart-wrap">
     <canvas ref="canvasRef" role="img" aria-label="Tendencia mensual de mediciones"></canvas>
-    <table class="sr-only-table">
-      <caption>Datos de tendencia mensual (tabla equivalente al gráfico)</caption>
-      <thead>
-        <tr><th>Mes</th><th>Mediciones</th></tr>
-      </thead>
-      <tbody>
-        <tr v-for="d in datos" :key="d.mes"><td>{{ d.mes }}</td><td>{{ d.mediciones }}</td></tr>
-      </tbody>
-    </table>
+    <!-- El ocultamiento va en el DIV y no en la tabla: display:table ignora
+         height:1px y clip no la recorta, así que la tabla suelta estiraba el
+         documento 636 px (medido) y dejaba al sidebar fuera de pantalla. -->
+    <div class="sr-only-table">
+      <table>
+        <caption>Datos de tendencia mensual (tabla equivalente al gráfico)</caption>
+        <thead>
+          <tr><th>Mes</th><th>Mediciones</th></tr>
+        </thead>
+        <tbody>
+          <tr v-for="d in datos" :key="d.mes"><td>{{ d.mes }}</td><td>{{ d.mediciones }}</td></tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 </template>
 
@@ -67,9 +72,16 @@ watch(() => props.datos, render)
 
 .sr-only-table {
   position: absolute;
+  top: 0;
+  left: 0;
   width: 1px;
   height: 1px;
+  margin: -1px;
+  padding: 0;
   overflow: hidden;
   clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }
 </style>

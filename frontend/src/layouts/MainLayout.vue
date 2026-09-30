@@ -1,5 +1,6 @@
 <script setup>
 import { useRoute } from 'vue-router'
+import { nextTick, ref, watch } from 'vue'
 import FiltrosBar from '../components/FiltrosBar.vue'
 // Logo institucional tal cual está en assets: Vite lo copia al build y
 // devuelve la URL resuelta. El PNG es monocromático azul marino (#0B1742,
@@ -8,6 +9,16 @@ import FiltrosBar from '../components/FiltrosBar.vue'
 import logoEnacom from '../assets/logoenacom.png'
 
 const route = useRoute()
+
+// El scroll de la página vive dentro de <main class="content">: el shell,
+// la barra superior y el sidebar quedan fijos. El scrollBehavior del router
+// sólo sabe rebobinar la VENTANA, así que al cambiar de sección hay que
+// llevar el contenido al principio a mano.
+const contenido = ref(null)
+watch(
+  () => route.fullPath,
+  () => nextTick(() => { if (contenido.value) contenido.value.scrollTop = 0 }),
+)
 
 const nav = [
   { to: '/', label: 'Inicio', icon: '◆' },
@@ -45,7 +56,6 @@ const nav = [
         </ul>
       </nav>
 
-      <p class="sidebar__pie">Dirección Nacional de Control y Fiscalización</p>
     </aside>
 
     <div class="main">
@@ -59,9 +69,18 @@ const nav = [
            contenido tiene 1.5rem de padding en los cuatro costados y el mapa
            queda en 60vh con un montón de aire alrededor, que era justo lo que
            sobraba. -->
-      <main class="content" :class="{ 'content--mapa': route.name === 'mapa' }">
+      <main ref="contenido" class="content" :class="{ 'content--mapa': route.name === 'mapa' }">
         <slot />
       </main>
+
+      <!-- Pie institucional: filete azul (--signal), logo de ENACOM y el
+           organismo responsable. Siempre visible al fondo de la derecha: el
+           scroll vive dentro de .content, así que este pie no le roba alto a
+           la ventana. -->
+      <footer class="pie">
+        <img class="pie__logo" :src="logoEnacom" alt="ENACOM" width="80" height="21" />
+        <p class="pie__texto">Dirección Nacional de Control y Fiscalización</p>
+      </footer>
     </div>
   </div>
 </template>
@@ -69,7 +88,14 @@ const nav = [
 <style scoped>
 .shell {
   display: flex;
-  min-height: 100%;
+  /* Altura exacta del viewport y sin scroll: la página nunca crece, así que
+     el sidebar y la barra superior quedan siempre a la vista. El exceso de
+     contenido lo absorbe .content con su propio scroll. Antes valía
+     min-height y el contenido se desbordaba POR FUERA del shell: esos px de
+     sobra no tenían sidebar detrás, que era exactamente lo que se veía al
+     bajar (fondo vacío sin barra). */
+  height: 100%;
+  overflow: hidden;
 }
 
 .sidebar {
@@ -79,9 +105,8 @@ const nav = [
   color: var(--on-ink);
   padding: var(--space-8) var(--space-5);
 
-  /* Columna con el pie anclado abajo: `.shell` estira el aside al alto
-     completo, así que el `margin-top: auto` del pie lo mantiene pegado al
-     fondo aunque la navegación no llene la altura. */
+  /* Columna: la marca arriba y la navegación debajo. El pie institucional dejó
+     de vivir acá (pasó al final del contenido, ver .pie). */
   display: flex;
   flex-direction: column;
   gap: var(--space-6);
@@ -151,17 +176,6 @@ const nav = [
   color: var(--signal-on-ink);
 }
 
-/* Pie del sidebar: el organismo responsable, anclado al fondo del todo.
-   `--on-ink-faint` es blanco al 55% sobre --ink (5.76:1), pasa AA. */
-.sidebar__pie {
-  margin: auto 0 0;
-  padding: var(--space-6) var(--space-4) 0;
-  border-top: 1px solid var(--on-ink-wash);
-  font-size: var(--fs-2xs);
-  line-height: 1.4;
-  color: var(--on-ink-faint);
-}
-
 /* El anillo de foco global es --signal, que sobre --ink da 2.52:1 y casi no
    se ve: dentro del sidebar se sustituye por el acento claro (6.15:1). */
 .sidebar :focus-visible {
@@ -171,6 +185,9 @@ const nav = [
 .main {
   flex: 1;
   min-width: 0;
+  /* Sin esto .main no puede quedarse corto y .content no podría hacer scroll
+     por dentro: el hijo flex no podría encoger más allá del contenido. */
+  min-height: 0;
   display: flex;
   flex-direction: column;
 }
@@ -200,15 +217,49 @@ const nav = [
 .content {
   padding: 1.5rem;
   flex: 1;
+  /* El scroll de cada sección vive acá y no en la ventana: el documento
+     mide exactamente la pantalla, así que el sidebar nunca se queda sin
+     fondo detrás. min-height: 0 es lo que permite que el hijo desborde y
+     aparezca la barra. */
+  min-height: 0;
+  overflow: auto;
 }
 
 .content--mapa {
   /* Sin padding ni margen: el mapa llega a los bordes y aprovecha todo el
-     alto que deja la barra superior. */
+     alto que deja la barra superior. overflow: hidden y no auto: Leaflet
+     mide su lienzo con el del contenedor y un scroll interno en vez de
+     recortar le dejaría un canvas de tamaño viejo. */
   padding: 0;
   display: flex;
   flex-direction: column;
   min-height: 0;
+  overflow: hidden;
+}
+
+/* Pie institucional: la línea azul es el filete de arriba (--signal), y
+   debajo van el logo y el organismo responsable. */
+.pie {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  padding: var(--space-3) var(--space-6);
+  background: var(--surface);
+  border-top: 2px solid var(--signal);
+}
+
+.pie__logo {
+  width: 80px;
+  height: auto;
+  display: block;
+}
+
+.pie__texto {
+  margin: 0;
+  font-size: var(--fs-2xs);
+  line-height: 1.3;
+  color: var(--ink-soft);
 }
 
 @media (max-width: 780px) {

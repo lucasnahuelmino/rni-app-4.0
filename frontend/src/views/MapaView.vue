@@ -30,6 +30,12 @@ const zoomActual = ref(null)
 const mapContainer = ref(null)
 let mapa = null
 let capaMarcadores = null
+// Leaflet mide su lienzo al montar y despues no se entera de nada. El
+// contenedor es absolute+inset, asi que su tamaño lo dan los hermanos y la
+// ventana: sin avisarle, cualquier cambio (el pie institucional nuevo, la
+// barra de filtros al estrecharse, redimensionar el navegador) dejaba el
+// mapa con el tamaño viejo y una franja vacía al lado.
+let observadorTamano = null
 
 /**
  * El modo pasa a ser automático según el zoom y reemplaza al selector manual
@@ -241,11 +247,25 @@ onMounted(async () => {
   await nextTick()
   mapa.invalidateSize()
   cargarPuntos()
+
+  observadorTamano = new ResizeObserver(() => {
+    const t = mapa.getContainer()
+    const s = mapa.getSize()
+    // El corte es a propósito: invalidateSize mueve el mapa, dispara
+    // 'moveend' y con él el debounce de cargarPuntos. Sin este if, un
+    // contenedor cuyo tamaño Leaflet no puede igualar entraría en bucle.
+    if (Math.round(t.clientWidth) !== s.x || Math.round(t.clientHeight) !== s.y) {
+      mapa.invalidateSize({ animate: false })
+    }
+  })
+  observadorTamano.observe(mapa.getContainer())
 })
 
 onBeforeUnmount(() => {
   clearTimeout(debounceMovimiento)
   clearTimeout(debounceBusqueda)
+  observadorTamano?.disconnect()
+  observadorTamano = null
   mapa?.remove()
   mapa = null
   appPopup?.unmount()
