@@ -199,23 +199,31 @@ select {
   padding-right: var(--space-8);
 }
 
+/* Tarjeta de KPI. Misma jerarquía que .error-state (fondo tintado + filete
+   de color a la izquierda, sin sombras), pero más chica: el rótulo baja a
+   versalitas con espaciado y el número de --fs-3xl a --fs-2xl, que es lo que
+   hace que la fila de 5 entre sobria en cualquier ancho razonable. */
 .stat-block {
-  background: var(--surface);
+  background: color-mix(in srgb, var(--signal) 5%, var(--surface));
   border: 1px solid var(--line);
   border-left: 3px solid var(--signal);
-  padding: var(--space-6);
+  padding: var(--space-5);
 }
 
 .stat-block__label {
-  font-size: var(--fs-xs);
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
   color: var(--ink-soft);
-  margin-bottom: var(--space-2);
+  margin-bottom: var(--space-1);
 }
 
 .stat-block__value {
   font-family: var(--font-mono);
-  font-size: var(--fs-3xl);
+  font-size: var(--fs-2xl);
   font-weight: 600;
+  line-height: 1.15;
 }
 
 .panel {

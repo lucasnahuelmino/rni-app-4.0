@@ -33,7 +33,8 @@ def _con_tiempo_formateado(row: dict) -> dict:
 @router.get("/localities")
 def get_localities(filtros: FiltrosQuery = Depends(filtros_query), conn=Depends(get_db)):
     filas = resumen_repo.listar_resumen_localidad(
-        conn, ccte=filtros.ccte, provincia=filtros.provincia, localidad=filtros.localidad
+        conn, ccte=filtros.ccte, provincia=filtros.provincia,
+        localidad=filtros.localidad, anio=filtros.anio,
     )
     return [_con_tiempo_formateado(f) for f in filas]
 
@@ -74,7 +75,7 @@ def get_top_localities(metric: str = "resultado_max_vm",
                         limit: int = Query(5, ge=1, le=500),
                         filtros: FiltrosQuery = Depends(filtros_query),
                         conn=Depends(get_db)):
-    """Ranking de localidades, acotable a un CCTE o provincia.
+    """Ranking de localidades, acotable a CCTE, provincia o año.
 
     Antes no aceptaba ningún filtro: devuélveme el top de todo, siempre.
     Ahora baja por `listar_resumen_localidad`, la misma puerta que usa
@@ -82,10 +83,10 @@ def get_top_localities(metric: str = "resultado_max_vm",
     del primero; el orden por la columna elegida se hace en Python sobre
     el resultado. Son 61 filas como máximo, así que el costo es nulo.
 
-    El filtro de Año NO aplica acá: `resumen_localidad` es un resumen
-    total por localidad y no tiene columna de año. No se puede cumplir y
-    en vez de filtrarlo en silencio (que daría un top que no es el que
-    pidió nadie) queda documentado.
+    El Año entra por esa misma puerta: `resumen_localidad` no tiene columna
+    de año, así que `listar_resumen_localidad` recalcula en vivo cuando se
+    lo piden (ver su docstring) -- antes el top devolvía las mismas filas con
+    y sin el filtro, que era justo lo que no tenía que hacer.
     """
     columnas_validas = {
         "resultado_max_vm", "resultado_max_pct", "resultado_prom_pct", "mediciones",
@@ -94,7 +95,7 @@ def get_top_localities(metric: str = "resultado_max_vm",
         raise HTTPException(status_code=400, detail=f"metric debe ser una de {columnas_validas}")
 
     filas = resumen_repo.listar_resumen_localidad(
-        conn, ccte=filtros.ccte, provincia=filtros.provincia,
+        conn, ccte=filtros.ccte, provincia=filtros.provincia, anio=filtros.anio,
     )
     filas = [f for f in filas if f.get(metric) is not None]
     filas.sort(key=lambda f: f[metric], reverse=True)

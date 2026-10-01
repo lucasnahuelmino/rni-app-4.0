@@ -13,19 +13,20 @@ const { data: kpis, loading: loadingKpis, error: errorKpis, reload: reloadKpis }
   async (filtros) => (await kpisApi.getKpis(filtros)).data,
 )
 
+// Las tres de abajo también miran el panel global. Antes traían
+// `watchFiltros: false` y llamaban sin filtros, así que con el año puesto el
+// dashboard quedaba a medio filtrar: cambiaban los KPIs y no cambiaba ni una
+// tarjeta, ni el top 5, ni la tendencia.
 const { data: ccteSummary, loading: loadingCcte, error: errorCcte, reload: reloadCcte } = useFetchOnFiltros(
-  async () => (await kpisApi.getCcteSummary()).data,
-  { watchFiltros: false },
+  async (filtros) => (await kpisApi.getCcteSummary(filtros)).data,
 )
 
 const { data: topLocalidades, loading: loadingTop, error: errorTop, reload: reloadTop } = useFetchOnFiltros(
-  async () => (await localitiesApi.getTopLocalities('resultado_max_vm', 5)).data,
-  { watchFiltros: false },
+  async (filtros) => (await localitiesApi.getTopLocalities('resultado_max_vm', 5, filtros)).data,
 )
 
 const { data: tendencia, loading: loadingTendencia, error: errorTendencia, reload: reloadTendencia } = useFetchOnFiltros(
-  async () => (await chartsApi.getMonthlyTrend()).data,
-  { watchFiltros: false },
+  async (filtros) => (await chartsApi.getMonthlyTrend(filtros)).data,
 )
 
 const picoTexto = computed(() => {
@@ -141,8 +142,12 @@ const picoTexto = computed(() => {
 }
 
 .ccte-grid {
+  /* Los 7 CCTE en UNA fila, siempre: son 7 y se comparan de un vistazo (los
+     5 con datos y Buenos Aires/CABA, que existen con 0). Con `auto-fit` se
+     partían en 3 o 4 columnas y el último quedaba solo abajo. minmax(0,1fr)
+     es lo que permite que las columnas se achiquen en vez de desbordar. */
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 0.75rem;
 }
 

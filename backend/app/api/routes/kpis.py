@@ -25,10 +25,16 @@ def get_kpis(filtros: FiltrosQuery = Depends(filtros_query), conn=Depends(get_db
 
 
 @router.get("/ccte-summary")
-def get_ccte_summary(orden: str = "mediciones", conn=Depends(get_db)):
+def get_ccte_summary(orden: str = "mediciones",
+                     filtros: FiltrosQuery = Depends(filtros_query),
+                     conn=Depends(get_db)):
     if orden not in COLUMNAS_ORDEN_CCTE:
         raise HTTPException(
             status_code=400,
             detail=f"orden debe ser una de: {', '.join(COLUMNAS_ORDEN_CCTE)}",
         )
-    return kpis_service.obtener_ccte_summary(conn, orden=orden)
+    # `filtros` hasta acá: `resumen_ccte` no tiene columna de año, así que sin
+    # este pase las tarjetas del dashboard se quedaban con los totales de
+    # toda la historia mientras el resto de la vista sí respondía al panel
+    # global (el bug del filtro de año que reportó el usuario).
+    return kpis_service.obtener_ccte_summary(conn, orden=orden, filtros=filtros)

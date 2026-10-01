@@ -17,9 +17,13 @@ const { data: localidades, loading, error, reload } = useFetchOnFiltros(
   async (filtros) => (await localitiesApi.getLocalities(filtros)).data,
 )
 
-// Las 9 columnas de la tabla declaradas una sola vez: `tipo` decide cómo se
+// Las 8 columnas de la tabla declaradas una sola vez: `tipo` decide cómo se
 // compara (num resta, texto usa localeCompare) y `etiqueta` es lo que se
 // muestra, así que cabecera, orden y clase numérica no pueden desincronizarse.
+//
+// `fecha_fin` quedó FUERA a pedido: con las 9 la fila no entraba en un solo
+// renglón y la fecha de cierre se veía completa en el Excel y en el detalle
+// de Gestión, así que de la vista es la que menos aporta.
 const COLUMNAS = [
   { campo: 'ccte', etiqueta: 'CCTE', tipo: 'texto' },
   { campo: 'provincia', etiqueta: 'Provincia', tipo: 'texto' },
@@ -32,7 +36,6 @@ const COLUMNAS = [
   // sirviendo si alguna vez tra hora; la celda solo muestra los
   // primeros 10 caracteres.
   { campo: 'fecha_inicio', etiqueta: 'Inicio', tipo: 'texto' },
-  { campo: 'fecha_fin', etiqueta: 'Fin', tipo: 'texto' },
 ]
 
 const columnaOrden = ref(null)
@@ -127,7 +130,6 @@ function ariaSort(campo) {
               <td class="num">{{ row.resultado_max_vm != null ? fmtVm(row.resultado_max_vm) : '—' }}</td>
               <td><SemaforoBadge :pct="row.resultado_max_pct" /></td>
               <td>{{ row.fecha_inicio ? row.fecha_inicio.slice(0, 10) : '—' }}</td>
-              <td>{{ row.fecha_fin ? row.fecha_fin.slice(0, 10) : '—' }}</td>
             </tr>
           </tbody>
         </table>
@@ -139,6 +141,28 @@ function ariaSort(campo) {
 <style scoped>
 .tabla-scroll {
   overflow-x: auto;
+}
+
+/* UNA sola línea por fila, sin excepción: `nowrap` en la tabla entera. Antes
+   cada celda se partía en 4 o 5 renglones (una fila llegaba a 97 px de alto)
+   y el registro no se leía de un vistazo. Con las 9 columnas y la fecha de
+   Fin la fila no entraba en un solo renglón, así que Fin salió de la vista y
+   la letra bajó de 0.85rem a 0.75rem: el ancho natural de la tabla pasa de
+   1062 a ~1006 px, que es lo que hace que entre en una pantalla de 1366 sin
+   barra de scroll. A 0.8rem sobraban 56 px y en 1366 se volvía a cortar.
+   Lo que sobre el ancho del panel no entre de taquito se scrollea en
+   horizontal, pero la fila nunca se parte. */
+.tabla-scroll table {
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+
+.tabla-scroll th,
+.tabla-scroll td {
+  padding: 5px;
+  /* Interlineado más apretado que el 1.5 del body, pensado para párrafos:
+     en una tabla de 1.35 la diferencia se nota en cada renglón. */
+  line-height: 1.35;
 }
 
 /* Reset del botón UA: sin esto cada cabecera traía su fondo gris y sus

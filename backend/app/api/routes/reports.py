@@ -44,10 +44,10 @@ def _exigir_datos(datos: dict, *, que: str) -> None:
 def _texto_filtros(filtros: FiltrosQuery) -> str:
     """Lo que se imprime en el Excel para dejar constancia de que se filtro.
 
-    El anio queda fuera a proposito: `resumen_localidad` es un resumen TOTAL
-    por localidad sin columna de anio, igual que en la vista Resumen -- ver el
-    comentario de get_top_localities. Listarlo aqui seria decir que filtro algo
-    que no filtro.
+    El anio va en la lista: esta descarga baja por `listar_resumen_localidad`,
+    la misma puerta que la vista de Resumen, y esa funcion recalcula en vivo
+    cuando hay filtro de anio (`resumen_localidad` no tiene la columna). Es
+    decir: si el Excel lo lista, lo filtro de verdad.
     """
     partes = []
     if filtros.ccte:
@@ -56,6 +56,8 @@ def _texto_filtros(filtros: FiltrosQuery) -> str:
         partes.append("Provincia: " + ", ".join(filtros.provincia))
     if filtros.localidad:
         partes.append("Localidad: " + ", ".join(filtros.localidad))
+    if filtros.anio:
+        partes.append("Anio: " + ", ".join(str(a) for a in filtros.anio))
     return " | ".join(partes) if partes else "Sin filtros"
 
 
@@ -105,12 +107,17 @@ def get_report_excel(filtros: FiltrosQuery = Depends(filtros_query), conn=Depend
     """La tabla de Resumen tal cual se ve en pantalla, con logo y titulos.
 
     Baja por la MISMA puerta que la vista (`listar_resumen_localidad`), asi que
-    el archivo no puede mostrar otra cosa que lo que el usuario esta mirando.
-    Las columnas se declaran en el servicio y tienen que coincidir con las de
-    frontend/src/views/ResumenView.vue.
+    el archivo no puede mostrar otra cosa que lo que el usuario esta mirando:
+    con filtro de anio esa puerta recalcula en vivo, igual que en pantalla.
+    Las columnas se declaran en el servicio y siguen la de
+    frontend/src/views/ResumenView.vue, con UNA excepción deliberada: la vista
+    sacó "Fin" para que la fila entrara en un solo renglón y el archivo la
+    conserva, porque en una planilla el ancho no es problema y la fecha de
+    cierre no deja de estar en el detalle de Gestión.
     """
     filas = resumen_repo.listar_resumen_localidad(
-        conn, ccte=filtros.ccte, provincia=filtros.provincia, localidad=filtros.localidad,
+        conn, ccte=filtros.ccte, provincia=filtros.provincia,
+        localidad=filtros.localidad, anio=filtros.anio,
     )
     if not filas:
         raise HTTPException(status_code=404, detail="Ninguna localidad coincide con los filtros")

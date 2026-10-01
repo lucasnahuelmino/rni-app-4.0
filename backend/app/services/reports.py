@@ -306,6 +306,11 @@ def generar_pdf(datos: dict, *, ambito: str, etiqueta: str) -> io.BytesIO:
 # servidor, pero es la misma lista de la misma vista: si se agrega una, va
 # en los dos lados.
 #
+# La única que se fue de un lado solo es `fecha_fin`: la vista la sacó para
+# que el registro entrara en UN renglón (con 9 columnas la fila no entraba
+# en 1366 px) y el Excel la conserva, porque ahí el ancho no es problema.
+# Ver el docstring de get_report_excel.
+#
 # Los tipos deciden el formato de la celda. "vm" y "pct" usan el mismo tope
 # de decimales que el frontend (3 y 4, ver frontend/src/format.js): esos son
 # los decimales que la base realmente tiene, asi que el formato muestra todo

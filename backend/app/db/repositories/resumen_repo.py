@@ -3,6 +3,9 @@ resumen_global) y de la tabla derivada `punto_max`."""
 from __future__ import annotations
 
 import sqlite3
+from datetime import datetime, timedelta
+
+from app.db.repositories.mediciones_repo import construir_where
 
 
 def upsert_resumen_localidad(conn: sqlite3.Connection, ccte: str, provincia: str, localidad: str,
@@ -280,7 +283,24 @@ def recalcular_punto_max(conn: sqlite3.Connection, ccte: str, provincia: str,
     )
 
 
-def listar_resumen_localidad(conn: sqlite3.Connection, ccte=None, provincia=None, localidad=None) -> list[dict]:
+def listar_resumen_localidad(conn: sqlite3.Connection, ccte=None, provincia=None,
+                             localidad=None, anio=None) -> list[dict]:
+    """Resumen por localidad con los filtros del panel global.
+
+    Es la puerta única de `/localities`, `/top-localities` y el Excel de
+    Resumen, y por eso el año entra ACÁ: `resumen_localidad` se guarda por
+    clave (ccte, provincia, localidad) sin columna de año, así que con un
+    filtro de año puesto esta función devolvía exactamente los mismos
+    renglones que sin filtro. La tabla responde a ccte/provincia/localidad;
+    cuando hay año hay que recalcular sobre `mediciones`
+    (`listar_resumen_localidad_en_vivo`), y centralizarlo acá hace que ninguno
+    de los tres consumidores vuelva a olvidarse.
+    """
+    if anio:
+        return listar_resumen_localidad_en_vivo(
+            conn, ccte=ccte, provincia=provincia, localidad=localidad, anio=anio,
+        )
+
     condiciones, params = [], []
     if ccte:
         condiciones.append(f"ccte IN ({','.join('?' for _ in ccte)})")
@@ -299,3 +319,108 @@ def listar_resumen_localidad(conn: sqlite3.Connection, ccte=None, provincia=None
 def listar_resumen_ccte(conn: sqlite3.Connection) -> list[dict]:
     cur = conn.execute("SELECT * FROM resumen_ccte")
     return [dict(r) for r in cur.fetchall()]
+
+
+def _set_ordenado(valor: str | None) -> str:
+    """Set ordenado de valores unido por coma: el criterio de
+    `services/statistics.recalcular` (que arma `sorted(set(...))`).
+
+    En la base no hay ni un expediente ni una sonda con coma (medido sobre
+    las 219.818 filas), así que separar lo que devuelve `group_concat` da
+    exactamente el mismo set que arma Python.
+    """
+    if not valor:
+        return ""
+    return ",".join(sorted(v for v in valor.split(",") if v))
+
+
+def grupos_tiempo_trabajado(conn: sqlite3.Connection, where: str, params: list) -> list[dict]:
+    """MIN/MAX de `fecha_hora` por localidad, archivo y día.
+
+    Es el dato crudo del que sale `tiempo_trabajado_seg`: el mismo
+    agrupamiento que usa `calculations/statistics.agregar_mediciones` (por
+    `nombre_archivo` y por día, sumando max-min de cada grupo), corrido en
+    SQL -- 241 grupos en vez de 219.818 filas. `where`/`params` salen de
+    `mediciones_repo.construir_where`, así que el tiempo respeta el mismo
+    filtro que el resto de la fila.
+    """
+    cur = conn.execute(
+        f"""SELECT ccte, provincia, localidad, nombre_archivo,
+                   substr(fecha_hora, 1, 10) AS dia,
+                   MIN(fecha_hora) AS desde, MAX(fecha_hora) AS hasta
+            FROM mediciones {where} {"AND" if where else "WHERE"} fecha_hora IS NOT NULL
+            GROUP BY ccte, provincia, localidad, nombre_archivo, substr(fecha_hora, 1, 10)""",
+        params,
+    )
+    return [dict(r) for r in cur.fetchall()]
+
+
+def listar_resumen_localidad_en_vivo(conn: sqlite3.Connection, ccte=None, provincia=None,
+                                     localidad=None, anio=None) -> list[dict]:
+    """`resumen_localidad` calculado EN VIVO con filtros que la tabla no puede
+    responder.
+
+    La tabla se guarda por clave (ccte, provincia, localidad) y resume toda la
+    historia: no tiene columna de año, así que `GET /localities?anio=2025`
+    devolvía los mismos 61 renglones y los mismos 34.303 bytes que sin filtro
+    (medido). Con el año activo hay que agregar de nuevo sobre `mediciones`.
+
+    Se corre en SQL y no cargando las filas a pandas (el camino de
+    `services/statistics.recalcular`) porque 2026 tiene 202.296 filas: en vivo
+    eso sería cerca de un segundo por consulta contra un scan de ~100 ms.
+
+    Los criterios son los de `calculations/statistics.agregar_mediciones`, que
+    es el que pobla la tabla:
+
+      * máximo de V/m y de %, promedio de %, primera y última fecha;
+      * `resultado_prom_pct` = promedio de `resultado_pct`, que es lo que hace
+        `promedio_pct_de_valores` con los valores de V/m fila por fila;
+      * expedientes y sondas: set ordenado unido por coma;
+      * `tiempo_trabajado_seg`: suma de max-min por archivo y por día
+        (`grupos_tiempo_trabajado`);
+      * `dias_con_medicion`: fechas COMPLETAS distintas -- un solo registro a
+        las 00:00 y otro a las 23:00 son dos días, no uno.
+
+    El orden es el de la tabla (`ccte, provincia, localidad`, que es su clave
+    primaria): con y sin año la lista arranca igual.
+    """
+    where, params = construir_where(ccte, provincia, anio, localidad)
+
+    filas = [
+        dict(r)
+        for r in conn.execute(
+            f"""SELECT ccte, provincia, localidad,
+                       COUNT(*) AS mediciones,
+                       MAX(resultado_vm) AS resultado_max_vm,
+                       MAX(resultado_pct) AS resultado_max_pct,
+                       AVG(resultado_pct) AS resultado_prom_pct,
+                       MIN(fecha_hora) AS fecha_inicio,
+                       MAX(fecha_hora) AS fecha_fin,
+                       COUNT(DISTINCT substr(fecha_hora, 1, 10)) AS dias_con_medicion,
+                       group_concat(DISTINCT expediente) AS expedientes,
+                       group_concat(DISTINCT sonda) AS sondas
+                FROM mediciones {where}
+                GROUP BY ccte, provincia, localidad
+                ORDER BY ccte, provincia, localidad""",
+            params,
+        )
+    ]
+
+    # timedelta y no segundos sueltos: la suma queda exacta (microsegundos
+    # enteros) y el `int()` final trunca igual que en pandas.
+    tiempos: dict[tuple, timedelta] = {}
+    for grupo in grupos_tiempo_trabajado(conn, where, params):
+        clave = (grupo["ccte"], grupo["provincia"], grupo["localidad"])
+        duracion = datetime.fromisoformat(grupo["hasta"]) - datetime.fromisoformat(grupo["desde"])
+        tiempos[clave] = tiempos.get(clave, timedelta()) + duracion
+
+    for fila in filas:
+        clave = (fila["ccte"], fila["provincia"], fila["localidad"])
+        fila["expedientes"] = _set_ordenado(fila["expedientes"])
+        fila["sondas"] = _set_ordenado(fila["sondas"])
+        fila["tiempo_trabajado_seg"] = int(tiempos.get(clave, timedelta()).total_seconds())
+        # `actualizado_en` es la marca del recálculo que persistió la fila.
+        # Ésta no se persistió (es un cálculo del pedido), así que no hay
+        # marca que mostrar: null y no una fecha inventada.
+        fila["actualizado_en"] = None
+    return filas

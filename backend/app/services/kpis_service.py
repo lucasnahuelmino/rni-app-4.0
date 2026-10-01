@@ -18,6 +18,7 @@ import sqlite3
 
 from app.calculations.dates import format_timedelta_long
 from app.core.config import CCTE_FIJOS, CCTE_SIEMPRE_VISIBLES
+from app.db.repositories import resumen_repo
 from app.db.repositories.mediciones_repo import construir_where
 from app.schemas.filters import FiltrosQuery
 
@@ -107,10 +108,67 @@ def obtener_kpis(conn: sqlite3.Connection, filtros: FiltrosQuery) -> dict:
     }
 
 
-def obtener_ccte_summary(conn: sqlite3.Connection, orden: str = "mediciones") -> list[dict]:
+def _ccte_summary_en_vivo(conn: sqlite3.Connection, filtros: FiltrosQuery) -> dict[str, dict]:
+    """`resumen_ccte` armado EN VIVO desde las localidades filtradas.
+
+    Va primero por localidad y después suma por CCTE, igual que
+    `resumen_repo.recalcular_resumen_ccte`: un agregado directo sobre
+    `mediciones` daría otros números, porque `dias_con_medicion` es la SUMA de
+    los días de cada localidad (dos localidades medidas el mismo día suman
+    dos días) y no la cantidad de fechas distintas del centro.
+
+    Sale de `listar_resumen_localidad_en_vivo`, la misma puerta que la vista
+    de Resumen, así que las tarjetas y la tabla no pueden divergir.
+    """
+    locales = resumen_repo.listar_resumen_localidad_en_vivo(
+        conn, ccte=filtros.ccte, provincia=filtros.provincia, anio=filtros.anio,
+    )
+
+    resumen: dict[str, dict] = {}
+    for f in locales:
+        c = resumen.setdefault(f["ccte"], {
+            "ccte": f["ccte"], "mediciones": 0, "localidades": 0, "provincias": set(),
+            "resultado_max_vm": None, "resultado_max_pct": None, "localidad_max": None,
+            "tiempo_trabajado_seg": 0, "dias_con_medicion": 0, "_pico": None,
+        })
+        c["mediciones"] += f["mediciones"]
+        c["localidades"] += 1
+        c["provincias"].add(f["provincia"])
+        c["tiempo_trabajado_seg"] += f["tiempo_trabajado_seg"] or 0
+        c["dias_con_medicion"] += f["dias_con_medicion"] or 0
+        for campo in ("resultado_max_vm", "resultado_max_pct"):
+            if f[campo] is not None and (c[campo] is None or f[campo] > c[campo]):
+                c[campo] = f[campo]
+        # Las localidades llegan ordenadas por clave, así que en un empate gana
+        # la primera: el mismo criterio que `ORDER BY resultado_max_vm DESC
+        # LIMIT 1` sobre resumen_localidad, cuyo recorrido es la clave.
+        if f["resultado_max_vm"] is not None and (
+            c["_pico"] is None or f["resultado_max_vm"] > c["_pico"]
+        ):
+            c["_pico"] = f["resultado_max_vm"]
+            c["localidad_max"] = f["localidad"]
+
+    for c in resumen.values():
+        c["provincias"] = len(c.pop("provincias"))
+        c.pop("_pico")
+        c["actualizado_en"] = None
+    return resumen
+
+
+def obtener_ccte_summary(conn: sqlite3.Connection, orden: str = "mediciones",
+                         filtros: FiltrosQuery | None = None) -> list[dict]:
     """Siempre devuelve los 7 CCTE fijos, con Buenos Aires/CABA presentes aunque
-    tengan 0 mediciones (Auditoría Fase 1, requisito de negocio confirmado)."""
-    filas = {r["ccte"]: dict(r) for r in conn.execute("SELECT * FROM resumen_ccte").fetchall()}
+    tengan 0 mediciones (Auditoría Fase 1, requisito de negocio confirmado).
+
+    Con filtros globales activos (ccte/provincia/año) los números salen de un
+    agregado en vivo: `resumen_ccte` tampoco tiene columna de año, así que
+    `?anio=2025` devolvía el total de toda la historia mientras el resto del
+    dashboard sí se filtraba.
+    """
+    if filtros is not None and (filtros.ccte or filtros.provincia or filtros.anio):
+        filas = _ccte_summary_en_vivo(conn, filtros)
+    else:
+        filas = {r["ccte"]: dict(r) for r in conn.execute("SELECT * FROM resumen_ccte").fetchall()}
 
     resultado = []
     for ccte in CCTE_FIJOS:

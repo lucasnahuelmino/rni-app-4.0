@@ -21,7 +21,11 @@ function filtrosParams(filtros, extra = {}) {
 
 export const kpisApi = {
   getKpis: (filtros) => api.get('/kpis', { params: filtrosParams(filtros) }),
-  getCcteSummary: (orden = 'mediciones') => api.get('/ccte-summary', { params: { orden } }),
+  // `filtros` va primero y por `filtrosParams`, igual que getKpis/getLocalities:
+  // las tarjetas por CCTE son parte del dashboard y tienen que responder al
+  // panel global (ccte/provincia/año) como el resto de la vista.
+  getCcteSummary: (filtros, orden = 'mediciones') =>
+    api.get('/ccte-summary', { params: filtrosParams(filtros, { orden }) }),
 }
 
 export const localitiesApi = {

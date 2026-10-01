@@ -16,9 +16,13 @@ from PIL import Image
 from app.db.repositories import resumen_repo
 from app.services import import_service, reports as reports_service
 
-# Columnas de la vista Resumen, escritas a mano a proposito (no se toman de
+# Columnas del Excel de Resumen, escritas a mano a proposito (no se toman de
 # reports_service.COLUMNAS_RESUMEN): si alguien cambia la constante sin
-# cambiar la vista, el test tiene que quejarse, no repetirle la respuesta.
+# cambiar este archivo, el test tiene que quejarse, no repetirle la respuesta.
+#
+# Son las 8 de la vista (frontend/src/views/ResumenView.vue, array COLUMNAS)
+# mas "Fin": esa la sacó de la pantalla sola, para que el registro entrara en
+# UN renglón, y el Excel la conserva porque ahi el ancho no es problema.
 COLUMNAS_VISTA = ["CCTE", "Provincia", "Localidad", "Expediente(s)", "Mediciones",
                   "Máx. V/m", "Nivel", "Inicio", "Fin"]
 
@@ -153,8 +157,8 @@ def test_pdf_trae_tiempo_y_sondas_que_antes_solo_ponia_el_word(conn, monkeypatch
 # --- Excel de Resumen -------------------------------------------------------
 
 def test_excel_resumen_replica_la_vista_con_expediente(conn):
-    """El boton de Resumen baja la tabla tal cual se ve: mismas columnas que
-    frontend/src/views/ResumenView.vue, incluida Expediente(s)."""
+    """El boton de Resumen baja las columnas de la vista, incluida
+    Expediente(s), mas la fecha de Fin que la vista no muestra."""
     _importar(conn, "Cordoba", "Cordoba", "Cordoba Capital", expediente="EXP-77")
     filas = resumen_repo.listar_resumen_localidad(conn)
 
