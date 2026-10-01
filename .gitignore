@@ -33,3 +33,6 @@ Thumbs.db
 # Temporales
 *.tmp
 *.temp
+
+# Empaquetados (el visor se entrega como .zip, no se versiona)
+*.zip
