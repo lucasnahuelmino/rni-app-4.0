@@ -20,11 +20,16 @@ en memoria del archivo.
 > **¿Por qué hace falta el `iniciar.bat`?** Los navegadores bloquean los
 > módulos ES y la carga del `.wasm` cuando la página viene de `file://`, así
 > que doble clic en `index.html` no puede funcionar. Si lo hacés, el visor te
-> avisa al pie con la solución. Cualquier servidor estático sirve
-> (`python -m http.server`, `npx serve`, etc.): el contenido no cambia.
+> avisa al pie con la solución.
+>
+> El `iniciar.bat` levanta `servidor.ps1`, un servidor estático de unas
+> pocas líneas escrito en PowerShell, que **ya viene con Windows 10 o
+> superior**: no hay que instalar nada (ni Python, ni Node). Si querés,
+> cualquier otro servidor estático sirve (`npx serve`, etc.): el contenido de
+> la carpeta no cambia, sólo se sirve por `http://`.
 
 Si el puerto 8090 está ocupado, avisame y lo movemos (el backend del proyecto
-usa 8001 y AeroRF el 8000/8011).
+usa 8001 y AeroRF el 8000/8011). El número vive arriba de `servidor.ps1`.
 
 ## Las cinco vistas
 
@@ -53,22 +58,21 @@ usa la app principal: están copiados de `backend/app/core/config.py`.
 Son **dos cosas**: la carpeta del visor y la base. Nada más.
 
 1. **La carpeta `visor-rni/`** — comprimida en `.zip` (hay un comando abajo)
-   o tal cual. Pesa ~15 MB e incluye todo: librerías, fuentes y el
-   `iniciar.bat`.
+   o tal cual. Pesa ~2 MB e incluye todo: librerías, fuentes, el
+   `iniciar.bat` y el `servidor.ps1`.
 2. **El archivo `rni.db`** (102 MB). Puede ir en cualquier parte de la
    computadora, no hace falta que esté adentro de la carpeta: se arrastra
    sobre la pantalla de carga.
 
 En la computadora de destino hace falta:
 
-- **Windows** (el `iniciar.bat` está escrito para eso);
-- **Python 3** instalado: es lo que levanta el servidor local. Si no lo tiene,
-  se instala desde python.org marcando *Add Python to PATH* (2 minutos);
+- **Windows 10 o superior** (el `iniciar.bat` está escrito para eso, y
+  PowerShell —que levanta el servidor— ya viene con el sistema);
 - **Chrome, Edge o Firefox** actualizado.
 
-Y acá: doble clic en `iniciar.bat`, arrastrar `rni.db`, listo. Si el puerto
-8090 está ocupado, el `.bat` lo avisa (se puede cambiar el número arriba del
-mismo archivo).
+**No hace falta instalar Python ni Node.** Y acá: doble clic en
+`iniciar.bat`, arrastrar `rni.db`, listo. Si el puerto 8090 está ocupado, la
+consola lo avisa (el número se cambia arriba de `servidor.ps1`).
 
 Para generar el zip desde la consola del proyecto:
 
@@ -104,7 +108,8 @@ ajustar el `src` en `index.html`.
 ```
 visor-rni/
 ├── index.html        pantalla única con las cinco vistas
-├── iniciar.bat       servidor local + abre el navegador
+├── iniciar.bat       doble clic: levanta servidor.ps1 y abre el navegador
+├── servidor.ps1      servidor estático en PowerShell (puerto 8090)
 ├── css/              visor.css (estilos) y fuentes.css (@font-face)
 ├── js/               módulos ES: base, formato, ui, escala, exportar y vistas/
 ├── fonts/            Space Grotesk, IBM Plex Sans y IBM Plex Mono (woff2)
