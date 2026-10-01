@@ -2,7 +2,7 @@
    Visor RNI — hoja de estilos única.
    Tipografía: Space Grotesk (títulos), IBM Plex Sans (interfaz),
    IBM Plex Mono (todo dato numérico). Color principal teal #0E7C8C,
-   barra lateral oscura, tarjetas con filete fino y SIN sombras.
+   cabecera con el menú en horizontal, tarjetas con filete fino y SIN sombras.
    ========================================================================== */
 
 :root {
@@ -67,13 +67,17 @@ code {
 
 /* ============================ estructura ============================ */
 
+/* El shell era una grilla de 236 px (sidebar) + contenido: la navegación y
+   los datos de la base pasaron a la cabecera, en horizontal, así que queda
+   una sola columna y esos 236 px vuelven al panel. */
 .shell {
   display: grid;
-  grid-template-columns: 236px 1fr;
-  grid-template-rows: auto 1fr;
+  grid-template-columns: 1fr;
+  grid-template-rows: auto auto 1fr;
   grid-template-areas:
-    "cabecera cabecera"
-    "sidebar  panel";
+    "cabecera"
+    "base"
+    "panel";
   height: 100vh;
   min-height: 100vh;
 }
@@ -84,7 +88,8 @@ code {
   grid-area: cabecera;
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 12px 20px;
+  flex-wrap: wrap;
   padding: 10px 20px;
   background: var(--superficie);
   border-bottom: 1px solid var(--linea);
@@ -152,38 +157,39 @@ code {
   background: var(--teal-suave);
 }
 
-/* ---------------------------- sidebar ---------------------------- */
+/* ------------------- menú horizontal en la cabecera ------------------- */
 
-.sidebar {
-  grid-area: sidebar;
-  background: var(--sidebar);
-  color: var(--sidebar-texto);
-  padding: 18px 14px;
+/* Antes los botones eran filas de la columna oscura de la izquierda: van
+   ahora en la cabecera, sobre fondo claro, así que cambian de color (texto
+   --tinta, no --sidebar-texto) y de ancho (el de su texto, no el 100% de
+   la columna que ocupaba el sidebar). */
+.cabecera__nav {
   display: flex;
-  flex-direction: column;
-  gap: 22px;
-  overflow-y: auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
 }
-
-.sidebar__nav { display: flex; flex-direction: column; gap: 4px; }
 
 .navitem {
   display: flex;
   align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 10px 12px;
+  gap: 8px;
+  width: auto;
+  padding: 7px 11px;
   background: transparent;
-  border: 1px solid transparent;
+  border: 1px solid var(--linea);
   border-radius: 6px;
-  color: var(--sidebar-texto);
+  color: var(--tinta);
   font-family: var(--fuente-ui);
-  font-size: 14.5px;
+  font-size: 14px;
   text-align: left;
   cursor: pointer;
 }
 
-.navitem:hover:not(:disabled) { background: var(--sidebar-fila); }
+.navitem:hover:not(:disabled) {
+  background: var(--fondo);
+  border-color: var(--linea-fuerte);
+}
 
 .navitem--activo {
   background: var(--teal);
@@ -196,45 +202,59 @@ code {
 
 .navitem__icono { font-size: 13px; opacity: 0.9; }
 
-.sidebar__base {
-  margin-top: auto;
-  border-top: 1px solid var(--sidebar-fila);
-  padding-top: 16px;
+/* ---------------- barra de datos de la base cargada ------------------- */
+
+/* Lo que era el pie de la columna oscura (archivo, conteos, cambiar
+   archivo) ahora es una fila horizontal bajo la cabecera. Los id no
+   cambiaron: js/main.js sigue escribiendo en los mismos. */
+.barra-base {
+  grid-area: base;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  padding: 6px 20px;
+  background: var(--superficie);
+  border-bottom: 1px solid var(--linea);
 }
 
-.sidebar__etiqueta {
-  margin: 0 0 4px;
+.barra-base__etiqueta {
+  margin: 0;
   font-size: 11.5px;
   text-transform: uppercase;
   letter-spacing: 0.07em;
-  color: #85a4ac;
+  color: var(--tinta-media);
 }
 
-.sidebar__archivo {
-  margin: 0 0 12px;
+.barra-base__archivo {
+  margin: 0;
   font-size: 13px;
-  color: #fff;
-  word-break: break-all;
+  color: var(--tinta);
 }
 
-.sidebar__datos { margin: 0 0 14px; }
-
-.sidebar__datos div {
+.barra-base__datos {
+  margin: 0;
   display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 4px 0;
-  border-bottom: 1px dotted var(--sidebar-fila);
+  flex-wrap: wrap;
+  gap: 2px 16px;
 }
 
-.sidebar__datos dt { font-size: 12.5px; color: #85a4ac; }
-.sidebar__datos dd { margin: 0; font-size: 13px; color: #fff; }
+/* Etiqueta y valor en la MISMA línea (dt + dd), no uno abajo del otro:
+   en una barra horizontal cada dato tiene que entrar en su renglón. */
+.barra-base__datos div {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
 
-.sidebar__nota {
-  margin: 10px 0 0;
+.barra-base__datos dt { font-size: 12px; color: var(--tinta-media); }
+.barra-base__datos dd { margin: 0; font-size: 13px; color: var(--tinta); font-weight: 600; }
+
+.barra-base__nota {
+  margin: 0 0 0 auto;
   font-size: 11.5px;
   line-height: 1.45;
-  color: #7e9ba3;
+  color: var(--tinta-media);
 }
 
 /* ---------------------------- panel ---------------------------- */
@@ -325,13 +345,15 @@ code {
 .btn--secundario { background: var(--superficie); }
 .btn--grande { padding: 11px 22px; font-size: 15px; }
 
+/* Botón de la barra de base: sobre fondo claro (antes vivía en la columna
+   oscura, por eso el borde y el texto eran de la paleta --sidebar-*). */
 .btn--fantasma {
-  width: 100%;
+  width: auto;
   background: transparent;
-  border-color: var(--sidebar-fila);
-  color: var(--sidebar-texto);
+  border-color: var(--linea-fuerte);
+  color: var(--tinta);
 }
-.btn--fantasma:hover:not(:disabled) { border-color: var(--teal); color: #fff; }
+.btn--fantasma:hover:not(:disabled) { border-color: var(--teal); color: var(--teal-oscuro); }
 
 .campo {
   padding: 8px 11px;
@@ -787,15 +809,13 @@ code {
 }
 
 @media (max-width: 900px) {
+  /* El shell ya es de una sola columna (no hay sidebar): en pantalla angosta
+     sólo hace falta que el documento crezca y que los datos de la barra se
+     oculten, igual que se ocultaban en la columna lateral. */
   .shell {
-    grid-template-columns: 1fr;
-    grid-template-areas: "cabecera" "sidebar" "panel";
     height: auto;
   }
-  .sidebar { flex-direction: row; align-items: center; flex-wrap: wrap; gap: 10px; }
-  .sidebar__nav { flex-direction: row; flex-wrap: wrap; }
-  .sidebar__base { margin-top: 0; border-top: 0; padding-top: 0; }
-  .sidebar__datos, .sidebar__nota { display: none; }
+  .barra-base__datos, .barra-base__nota { display: none; }
   .panel { overflow: visible; }
   .tabla__marco { max-height: none; }
   .cabecera__detalle { display: none; }

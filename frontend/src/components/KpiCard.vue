@@ -18,7 +18,7 @@ defineProps({
 
 <style scoped>
 .stat-block__unidad {
-  font-size: var(--fs-sm);
+  font-size: var(--fs-md);
   color: var(--ink-soft);
   font-weight: 400;
 }

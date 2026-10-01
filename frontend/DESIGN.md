@@ -19,8 +19,8 @@ logo oficial (`src/assets/logoenacom.png`, monocromático `#0B1742`) y el resto
 son azules derivados de ese. Todos los valores de texto están **medidos**, no
 estimados, y pasan WCAG AA.
 
-- `--ink: #0B1742` — texto principal, fondo del sidebar, fondo de `.btn`
-  (17.3:1 sobre `--surface`; es el hex del logo)
+- `--ink: #0B1742` — texto principal, fondo de la barra superior, fondo de
+  `.btn` (17.3:1 sobre `--surface`; es el hex del logo)
 - `--ink-soft: #3D4670` — texto secundario, labels (9.1:1)
 - `--paper: #F4F6FA` — fondo general (frío y levemente azulado, no crema)
 - `--surface: #FFFFFF` — superficies de contenido
@@ -29,7 +29,7 @@ estimados, y pasan WCAG AA.
   `.stat-block`, series de Chart.js
 - `--signal-deep: #0E2E73` — hover/activo (12.7:1)
 - `--signal-on-ink: #6E96FF` — acento que cae **sobre `--ink`** (ícono y
-  borde del link activo del sidebar, anillo de foco ahí dentro).
+  filete del link activo del menú superior, anillo de foco ahí dentro).
   `--signal` sobre `--ink` da 2.52:1 y no supera el mínimo de 3:1 para
   elementos gráficos; este da 6.15:1. **No usarlo sobre blanco**: allí
   corresponde `--signal`. Regla corta: sobre claro va `--signal`, sobre
@@ -48,13 +48,13 @@ estimados, y pasan WCAG AA.
   decoración **sobre `--ink`**, derivados de `--surface` con `color-mix()`.
   Cambiá `--surface` y todo lo que va encima de `--ink` se mueve con él.
 
-El logo va en el **sidebar**, arriba de todo, con "Base de datos de
-Radiaciones no Ionizantes" debajo y "Dirección Nacional de Control y
-Fiscalización" anclado al pie. El PNG es monocromo `#0B1742`, el mismo
-azul que el fondo del sidebar, así que ahí quedaba invisible (ese era el
-motivo por el que vivía en la barra superior sobre fondo claro): se lo
-pasa a blanco con `filter: brightness(0) invert(1)`, que no toca el alfa y
-por eso no deja ningún rectángulo detrás.
+El logo va en la **barra superior**, a la izquierda del menú, con "Base de
+datos de Radiaciones no Ionizantes" al lado (recién a partir de 1500 px de
+ancho, para no empujar el menú a otro renglón) y "Dirección Nacional de
+Control y Fiscalización" anclado al pie. El PNG es monocromo `#0B1742`, el
+mismo azul que el fondo de la barra, así que sobre ella queda invisible: se
+lo pasa a blanco con `filter: brightness(0) invert(1)`, que no toca el alfa
+y por eso no deja ningún rectángulo detrás.
 
 ## Tipografía
 - Titulares y navegación: **Space Grotesk** (geométrica, técnica, no es el
@@ -79,14 +79,23 @@ número no está en la escala, no se usa.
 - **No hay `--shadow-*` a propósito.** No es un hueco: ver el principio rector.
 
 ## Layout
-Sidebar fijo oscuro (`--ink`) a la izquierda: logo de ENACOM + "Base de
-datos de Radiaciones no Ionizantes" arriba, la navegación en el medio y
-"Dirección Nacional de Control y Fiscalización" anclado al pie. Barra
-superior con el título de la vista + los filtros globales
-(CCTE/Provincia/Año) como chips, siempre visibles. Contenido principal en
-grilla densa, alineado a la izquierda. Los bloques de KPI son rectángulos con
-borde fino y una barra de color a la izquierda (no shadow, no border-radius
-grande).
+Una sola barra oscura (`--ink`) arriba: logo de ENACOM + "Base de datos de
+Radiaciones no Ionizantes" a la izquierda, **menú de secciones centrado** y
+los filtros globales (CCTE/Provincia/Año) como chips a la derecha, siempre
+visibles. No hay título de la sección en la barra: el link activo ya la
+identifica y el `<h1>` sigue en el DOM con `sr-only` para lectores de
+pantalla. La navegación no vive en una columna lateral: un sidebar de 220 px
+le robaba ese ancho a todo el contenido (la tabla de Resumen necesitaba
+barra horizontal), así que el menú pasó a horizontal y esos 220 px volvieron
+a la vista. Contenido principal en grilla densa, alineado a la izquierda,
+con scroll propio dentro de `.content` (la barra y el pie no se mueven). Los
+bloques de KPI son rectángulos con borde fino y una barra de color a la
+izquierda (no shadow, no border-radius grande).
+
+Las secciones del menú son cinco: Inicio, Resumen, Centro operativo, Mapa y
+Carga de Excel. **Diagnóstico** no es una entrada propia: vive dentro de
+Carga de Excel (redirigido desde `/diagnostico`), porque son datos crudos de
+la misma base que se importa.
 
 ### Mapa (vista `/mapa`)
 Es la única vista que rompe el padding de `.content`: `MainLayout` le pone

@@ -10,9 +10,9 @@
      oficial (src/assets/logoenacom.png, monocromático #0B1742); el resto son
      azules derivados de ese. Todos los tokens de texto pasan WCAG AA
      (>=4.5:1) sobre --surface y --paper, medido y no estimado: ver
-     DESIGN.md, sección Color. El acento que cae SOBRE el sidebar tiene su
-     propio token, porque un azul legible sobre blanco no es visible sobre
-     azul marino. */
+     DESIGN.md, sección Color. El acento que cae SOBRE los fondos --ink
+     tiene su propio token, porque un azul legible sobre blanco no es
+     visible sobre azul marino. */
   --ink: #0b1742;
   --ink-soft: #3d4670;
   --paper: #f4f6fa;
@@ -20,7 +20,7 @@
   --line: rgba(11, 23, 66, 0.12);
   --signal: #1a4fbf;
   --signal-deep: #0e2e73;
-  /* Acento sobre --ink (sidebar: ícono, borde del link activo, anillo de
+  /* Acento sobre --ink (superficies oscuras: filete, ícono y anillo de
      foco). --signal (#1a4fbf) sobre --ink da 2.52:1, debajo del 3:1 mínimo
      de WCAG para elementos gráficos; este azul claro da 6.15:1. No usarlo
      sobre blanco -- allí corresponde --signal, que da 7.21:1. */
@@ -34,7 +34,7 @@
   --risk-high: #b23a3a;
   --sin-dato: #9aa5ab; /* neutro para "sin dato": leyenda, marcadores, badges */
 
-  /* Texto y decoración sobre --ink (sidebar, badges de acento).
+  /* Texto y decoración sobre --ink (superficies oscuras, badges de acento).
      Derivados de --surface con color-mix: antes eran rgba(255,255,255,x)
      escritos a mano en MainLayout.vue y FiltrosBar.vue, fuera del sistema. */
   --on-ink: var(--surface);
@@ -200,18 +200,18 @@ select {
 }
 
 /* Tarjeta de KPI. Misma jerarquía que .error-state (fondo tintado + filete
-   de color a la izquierda, sin sombras), pero más chica: el rótulo baja a
-   versalitas con espaciado y el número de --fs-3xl a --fs-2xl, que es lo que
-   hace que la fila de 5 entre sobria en cualquier ancho razonable. */
+   de color a la izquierda, sin sombras), con el rótulo en versalitas con
+   espaciado y el número en --fs-3xl: la fila de 5 entra sobria en cualquier
+   ancho razonable porque la barra es horizontal y no hay sidebar. */
 .stat-block {
   background: color-mix(in srgb, var(--signal) 5%, var(--surface));
   border: 1px solid var(--line);
   border-left: 3px solid var(--signal);
-  padding: var(--space-5);
+  padding: var(--space-6);
 }
 
 .stat-block__label {
-  font-size: var(--fs-2xs);
+  font-size: var(--fs-xs);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.07em;
@@ -221,7 +221,7 @@ select {
 
 .stat-block__value {
   font-family: var(--font-mono);
-  font-size: var(--fs-2xl);
+  font-size: var(--fs-3xl);
   font-weight: 600;
   line-height: 1.15;
 }

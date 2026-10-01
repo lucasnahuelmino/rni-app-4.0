@@ -4,6 +4,10 @@ import { importsApi } from '../services/domains'
 import { CCTE_FIJOS } from '../ccte'
 import { PROVINCIAS } from '../provincias'
 import Combobox from '../components/Combobox.vue'
+// El diagnóstico no es una vista propia desde que dejó de estar en el menú:
+// vive en esta misma sección porque son datos crudos de la base que acá se
+// importa (ver router/index.js, redirect de /diagnostico).
+import DiagnosticoView from './DiagnosticoView.vue'
 
 const ccte = ref('')
 const provincia = ref('')
@@ -56,72 +60,86 @@ async function enviar() {
 </script>
 
 <template>
-  <section class="panel carga">
-    <h2>Carga de Excel</h2>
-    <form class="carga__form" @submit.prevent="enviar">
-      <Combobox
-        v-model="ccte"
-        :opciones="CCTE_FIJOS"
-        label="CCTE"
-        placeholder="Escribí para buscar…"
-        required
-      />
-      <Combobox
-        v-model="provincia"
-        :opciones="PROVINCIAS"
-        label="Provincia"
-        placeholder="Escribí para buscar…"
-        required
-      />
-      <label>
-        Localidad
-        <input v-model="localidad" type="text" required />
-      </label>
-      <label>
-        Expediente (opcional)
-        <input v-model="expediente" type="text" />
-      </label>
-      <label class="carga__archivos">
-        Archivos Excel
-        <input type="file" accept=".xlsx,.xls" multiple @change="onArchivosChange" required />
-      </label>
+  <!-- Dos paneles apilados con un renglón de aire entre los dos: el de la
+       carga y, debajo, el diagnóstico de calidad de datos. -->
+  <div class="carga-vista">
+    <section class="panel carga">
+      <h2>Carga de Excel</h2>
+      <form class="carga__form" @submit.prevent="enviar">
+        <Combobox
+          v-model="ccte"
+          :opciones="CCTE_FIJOS"
+          label="CCTE"
+          placeholder="Escribí para buscar…"
+          required
+        />
+        <Combobox
+          v-model="provincia"
+          :opciones="PROVINCIAS"
+          label="Provincia"
+          placeholder="Escribí para buscar…"
+          required
+        />
+        <label>
+          Localidad
+          <input v-model="localidad" type="text" required />
+        </label>
+        <label>
+          Expediente (opcional)
+          <input v-model="expediente" type="text" />
+        </label>
+        <label class="carga__archivos">
+          Archivos Excel
+          <input type="file" accept=".xlsx,.xls" multiple @change="onArchivosChange" required />
+        </label>
 
-      <div class="carga__acciones">
-        <button class="btn" type="submit" :disabled="enviando">
-          {{ enviando ? 'Procesando…' : 'Importar' }}
-        </button>
+        <div class="carga__acciones">
+          <button class="btn" type="submit" :disabled="enviando">
+            {{ enviando ? 'Procesando…' : 'Importar' }}
+          </button>
+        </div>
+
+        <p v-if="errorEnvio" role="alert" class="carga__error">{{ errorEnvio }}</p>
+      </form>
+
+      <div v-if="reporte" class="carga__reporte panel" role="status">
+        <h3>Reporte de importación (lote #{{ reporte.id }})</h3>
+        <dl class="carga__reporte-grid">
+          <div><dt>Archivos procesados</dt><dd class="num">{{ reporte.archivos_procesados }}</dd></div>
+          <div><dt>Registros nuevos</dt><dd class="num">{{ reporte.registros_nuevos }}</dd></div>
+          <div><dt>Duplicados</dt><dd class="num">{{ reporte.registros_duplicados }}</dd></div>
+          <div><dt>Rechazados</dt><dd class="num">{{ reporte.registros_rechazados }}</dd></div>
+        </dl>
+
+        <div v-if="reporte.advertencias?.length" class="carga__lista">
+          <h4>Advertencias</h4>
+          <ul>
+            <li v-for="(a, i) in reporte.advertencias" :key="i">{{ a.archivo }}: {{ a.advertencia }}</li>
+          </ul>
+        </div>
+
+        <div v-if="reporte.errores?.length" class="carga__lista carga__lista--error">
+          <h4>Errores</h4>
+          <ul>
+            <li v-for="(err, i) in reporte.errores" :key="i">{{ err.archivo }}: {{ err.error }}</li>
+          </ul>
+        </div>
       </div>
+    </section>
 
-      <p v-if="errorEnvio" role="alert" class="carga__error">{{ errorEnvio }}</p>
-    </form>
-
-    <div v-if="reporte" class="carga__reporte panel" role="status">
-      <h3>Reporte de importación (lote #{{ reporte.id }})</h3>
-      <dl class="carga__reporte-grid">
-        <div><dt>Archivos procesados</dt><dd class="num">{{ reporte.archivos_procesados }}</dd></div>
-        <div><dt>Registros nuevos</dt><dd class="num">{{ reporte.registros_nuevos }}</dd></div>
-        <div><dt>Duplicados</dt><dd class="num">{{ reporte.registros_duplicados }}</dd></div>
-        <div><dt>Rechazados</dt><dd class="num">{{ reporte.registros_rechazados }}</dd></div>
-      </dl>
-
-      <div v-if="reporte.advertencias?.length" class="carga__lista">
-        <h4>Advertencias</h4>
-        <ul>
-          <li v-for="(a, i) in reporte.advertencias" :key="i">{{ a.archivo }}: {{ a.advertencia }}</li>
-        </ul>
-      </div>
-
-      <div v-if="reporte.errores?.length" class="carga__lista carga__lista--error">
-        <h4>Errores</h4>
-        <ul>
-          <li v-for="(err, i) in reporte.errores" :key="i">{{ err.archivo }}: {{ err.error }}</li>
-        </ul>
-      </div>
-    </div>
-  </section>
+    <DiagnosticoView />
+  </div>
 </template>
 
 <style scoped>
+/* Los dos paneles de la sección (carga + diagnóstico): sin este contenedor
+   se apilaban sin aire, porque .panel no tiene margen. */
+.carga-vista {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
 .carga__form {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));

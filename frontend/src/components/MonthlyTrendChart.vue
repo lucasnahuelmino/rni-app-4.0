@@ -50,7 +50,7 @@ watch(() => props.datos, render)
     <canvas ref="canvasRef" role="img" aria-label="Tendencia mensual de mediciones"></canvas>
     <!-- El ocultamiento va en el DIV y no en la tabla: display:table ignora
          height:1px y clip no la recorta, así que la tabla suelta estiraba el
-         documento 636 px (medido) y dejaba al sidebar fuera de pantalla. -->
+         documento 636 px (medido). -->
     <div class="sr-only-table">
       <table>
         <caption>Datos de tendencia mensual (tabla equivalente al gráfico)</caption>

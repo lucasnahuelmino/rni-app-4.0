@@ -12,7 +12,12 @@ const routes = [
   // no romper marcadores guardados: solo cambia el nombre visible.
   { path: '/gestion', name: 'gestion', component: () => import('../views/GestionView.vue'), meta: { titulo: 'Centro operativo' } },
   { path: '/mapa', name: 'mapa', component: () => import('../views/MapaView.vue'), meta: { titulo: 'Mapa' } },
-  { path: '/diagnostico', name: 'diagnostico', component: () => import('../views/DiagnosticoView.vue'), meta: { titulo: 'Diagnóstico' } },
+  // /diagnostico dejó de ser una sección: el diagnóstico quedó DENTRO de
+  // Carga de Excel, porque son datos crudos de la misma base que se importa
+  // y tienen más relación con la carga que con las vistas de consulta. El
+  // path queda como redirect para no romper marcadores guardados, igual que
+  // /graficos apuntando a /gestion.
+  { path: '/diagnostico', redirect: '/carga' },
   { path: '/carga', name: 'carga', component: () => import('../views/CargaView.vue'), meta: { titulo: 'Carga de Excel' } },
   // Sin catch-all antes: una ruta mal tipeada ("/gestio") quedaba en blanco
   // eterno porque MainLayout seguía montado y route.meta.titulo era undefined.

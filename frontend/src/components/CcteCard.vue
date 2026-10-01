@@ -35,15 +35,16 @@ defineProps({
   background: var(--surface);
   border: 1px solid var(--line);
   border-top: 3px solid var(--signal);
-  /* Siete en una fila: el padding baja de 0.85/1rem para que el nombre del
-     centro y sus datos entren en una columna angosta sin desbordar. */
-  padding: 0.5rem 0.6rem;
+  /* Siete en una fila y sin apretar: como el menú pasó a la barra de arriba
+     cada columna ganó los 220 px del sidebar, así que vuelven los tamaños
+     de antes del ajuste (0.85rem el nombre, 0.8rem los datos). */
+  padding: 0.65rem 0.75rem;
 }
 
 .ccte-card h3 {
-  font-size: 0.78rem;
+  font-size: var(--fs-md);
   line-height: 1.2;
-  margin-bottom: 0.35rem;
+  margin-bottom: var(--space-3);
   overflow-wrap: anywhere;
 }
 
@@ -54,9 +55,9 @@ defineProps({
      vez de pisarse con la etiqueta. */
   flex-wrap: wrap;
   justify-content: space-between;
-  gap: 0 0.35rem;
-  padding: 0.12rem 0;
-  font-size: 0.7rem;
+  gap: 0 0.4rem;
+  padding: 0.16rem 0;
+  font-size: var(--fs-sm);
 }
 
 dt {

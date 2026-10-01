@@ -100,7 +100,7 @@ ajustar el `src` en `index.html`.
 
 1. Reemplazá el archivo `rni.db` por la versión nueva (o guardalo donde quieras
    y cargalo desde el disco).
-2. Con el visor abierto, botón **Cambiar archivo** en la barra lateral y elegí
+2. Con el visor abierto, botón **Cambiar archivo** en la barra de datos de la base y elegí
    la base nueva. No hace falta recargar la página.
 
 ## Carpetas

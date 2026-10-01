@@ -199,4 +199,48 @@ function agregarAnio() {
   /* border/padding/color los pone el global de tokens.css -- acá solo va lo
      que es propio de esta fila. */
 }
+
+/* --- Sobre la barra oscura de MainLayout (que nos la pasa con .sobre-oscuro) ---
+   Sólo lo que queda FUERA del panel desplegable: el panel es una tarjeta
+   clara que se abre hacia abajo y conserva sus colores de siempre, así que
+   los chips de adentro no se tocan (por eso los selectores se anclan en
+   .filtros__activos y no en el componente entero). */
+.filtros.sobre-oscuro > .btn--ghost {
+  color: var(--on-ink);
+  border-color: var(--on-ink-soft);
+}
+
+.filtros.sobre-oscuro > .btn--ghost:hover {
+  background: var(--on-ink-wash);
+  color: var(--on-ink);
+}
+
+.filtros.sobre-oscuro .filtros__vacio {
+  color: var(--on-ink-soft);
+}
+
+.filtros.sobre-oscuro .filtros__limpiar {
+  color: var(--on-ink);
+}
+
+/* Los chips de filtros activos, sobre claro, eran cajitas blancas con texto
+   azul; sobre --ink se invierten para que no quede un rectángulo claro
+   pegado en la barra. */
+.filtros.sobre-oscuro .filtros__activos .chip--active {
+  background: transparent;
+  border-color: var(--on-ink-soft);
+  color: var(--on-ink);
+}
+
+.filtros.sobre-oscuro .filtros__activos .chip--active:hover {
+  border-color: var(--signal-on-ink);
+  color: var(--signal-on-ink);
+}
+
+/* El anillo de foco global es --signal: sobre --ink da 2.52:1 y no se ve
+   (mismo motivo que el ícono del menú en MainLayout). */
+.filtros.sobre-oscuro > :focus-visible,
+.filtros.sobre-oscuro .filtros__activos > :focus-visible {
+  outline-color: var(--signal-on-ink);
+}
 </style>

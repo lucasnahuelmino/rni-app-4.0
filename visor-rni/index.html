@@ -50,14 +50,7 @@
       <span class="cabecera__nombre">Visor RNI</span>
       <span class="cabecera__detalle">Radiaciones no Ionizantes · consulta en modo lectura</span>
     </div>
-    <div class="cabecera__estado">
-      <span class="pastilla" id="pastilla-base">Sin base cargada</span>
-    </div>
-  </header>
-
-  <!-- ================= barra lateral oscura ================= -->
-  <aside class="sidebar">
-    <nav class="sidebar__nav" aria-label="Vistas">
+    <nav class="cabecera__nav" aria-label="Vistas">
       <button class="navitem navitem--activo" data-vista="inicio" disabled>
         <span class="navitem__icono" aria-hidden="true">⌂</span> Inicio
       </button>
@@ -75,18 +68,26 @@
       </button>
     </nav>
 
-    <div class="sidebar__base" id="sidebar-base">
-      <p class="sidebar__etiqueta">Base cargada</p>
-      <p class="sidebar__archivo num" id="sidebar-archivo">—</p>
-      <dl class="sidebar__datos">
-        <div><dt>Mediciones</dt><dd class="num" id="sidebar-mediciones">—</dd></div>
-        <div><dt>Localidades</dt><dd class="num" id="sidebar-localidades">—</dd></div>
-        <div><dt>Tablas</dt><dd class="num" id="sidebar-tablas">—</dd></div>
-      </dl>
-      <button class="btn btn--fantasma" id="btn-cambiar">Cambiar archivo</button>
-      <p class="sidebar__nota">Lectura única: el archivo no se abre para escribir.</p>
+    <div class="cabecera__estado">
+      <span class="pastilla" id="pastilla-base">Sin base cargada</span>
     </div>
-  </aside>
+  </header>
+
+  <!-- ====== barra de datos de la base (antes, el pie del sidebar) ======
+       La navegación y este bloque eran una columna de 236 px a la izquierda:
+       ahora van los dos en horizontal y esos 236 px vuelven al panel. Los
+       id siguen siendo los mismos, así que js/main.js no cambió. -->
+  <div class="barra-base" id="sidebar-base">
+    <p class="barra-base__etiqueta">Base cargada</p>
+    <p class="barra-base__archivo num" id="sidebar-archivo">—</p>
+    <dl class="barra-base__datos">
+      <div><dt>Mediciones</dt><dd class="num" id="sidebar-mediciones">—</dd></div>
+      <div><dt>Localidades</dt><dd class="num" id="sidebar-localidades">—</dd></div>
+      <div><dt>Tablas</dt><dd class="num" id="sidebar-tablas">—</dd></div>
+    </dl>
+    <button class="btn btn--fantasma" id="btn-cambiar">Cambiar archivo</button>
+    <p class="barra-base__nota">Lectura única: el archivo no se abre para escribir.</p>
+  </div>
 
   <!-- ================= panel de contenido ================= -->
   <main class="panel">
@@ -99,7 +100,7 @@
         <p>Arrastrá el archivo acá o elegilo desde el disco. Se lee entero en tu
            navegador con SQLite (WASM): no se sube a ningún lado ni se modifica.</p>
         <!-- el input vive afuera (al final del body) para que el botón
-             "Cambiar archivo" del sidebar también pueda abrirlo -->
+             "Cambiar archivo" de la barra de base también pueda abrirlo -->
         <label class="btn btn--primario btn--grande" for="input-archivo">Elegir archivo</label>
         <p class="carga__alternativa">También podés servirlo por HTTP con
            <code>iniciar.bat</code>.</p>

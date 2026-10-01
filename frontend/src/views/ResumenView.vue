@@ -145,21 +145,19 @@ function ariaSort(campo) {
 
 /* UNA sola línea por fila, sin excepción: `nowrap` en la tabla entera. Antes
    cada celda se partía en 4 o 5 renglones (una fila llegaba a 97 px de alto)
-   y el registro no se leía de un vistazo. Con las 9 columnas y la fecha de
-   Fin la fila no entraba en un solo renglón, así que Fin salió de la vista y
-   la letra bajó de 0.85rem a 0.75rem: el ancho natural de la tabla pasa de
-   1062 a ~1006 px, que es lo que hace que entre en una pantalla de 1366 sin
-   barra de scroll. A 0.8rem sobraban 56 px y en 1366 se volvía a cortar.
-   Lo que sobre el ancho del panel no entre de taquito se scrollea en
-   horizontal, pero la fila nunca se parte. */
+   y el registro no se leía de un vistazo. Para eso la columna Fin salió de
+   la vista, y la letra vuelve a --fs-md (0.85rem), el tamaño de antes del
+   ajuste: con el menú arriba el panel se llevó los 220 px que ocupaba el
+   sidebar y hoy entra holgado. Lo que sobre el ancho del panel no entre de
+   taquito se scrollea en horizontal, pero la fila nunca se parte. */
 .tabla-scroll table {
-  font-size: var(--fs-xs);
+  font-size: var(--fs-md);
   white-space: nowrap;
 }
 
 .tabla-scroll th,
 .tabla-scroll td {
-  padding: 5px;
+  padding: 5px 6px;
   /* Interlineado más apretado que el 1.5 del body, pensado para párrafos:
      en una tabla de 1.35 la diferencia se nota en cada renglón. */
   line-height: 1.35;
