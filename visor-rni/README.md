@@ -30,10 +30,10 @@ usa 8001 y AeroRF el 8000/8011).
 
 | Vista | Fuente | Qué hace |
 |---|---|---|
-| **Inicio** | `resumen_global` + `resumen_ccte` | Las tarjetas de la app original: registros totales, localidades, provincias, centros (CCTE) y promedio del límite; después el pico máximo registrado con su sello de color; después una tarjeta por CCTE con mediciones, localidades, provincias, pico V/m, pico %, localidad del pico, días y tiempo trabajado. |
+| **Inicio** | `resumen_global` + `resumen_ccte` | Las tarjetas de la app original: registros totales, localidades, provincias, centros (CCTE) y promedio del límite; después el pico máximo registrado con su sello de color; después una tarjeta por cada uno de los **7 CCTE** — los 5 con datos más Buenos Aires y CABA, que la app muestra siempre aunque tengan 0 mediciones, todos en una misma fila — con mediciones, localidades, provincias, pico V/m, pico %, localidad del pico, días y tiempo trabajado. |
 | **Localidades** | `resumen_localidad` (si no existe, se recalcula desde `mediciones`) | Resumen por localidad. Buscador en vivo, orden por columna (CCTE, provincia, localidad y máximos) y contador. |
 | **Por horarios** | `mediciones` | Medición por medida con fecha y hora. Filtros por localidad, rango de fechas y buscador, con paginación. |
-| **Resúmenes** | `resumen_ccte`, `resumen_anual`, `resumen_provincia`, `resumen_provincia_ccte`, `resumen_global` (con respaldo en `mediciones`) | Seis pestañas: **Por centro** (tiempos trabajados y días de cada CCTE), **Por mes**, **Por año**, **Por provincia**, **Provincia y CCTE** y **En general** (todos los indicadores de la base en una lista). |
+| **Resúmenes** | `resumen_ccte`, `resumen_anual`, `resumen_provincia`, `resumen_provincia_ccte`, `resumen_global` (con respaldo en `mediciones`) | Seis pestañas: **Por centro** (los 7 CCTE, con Buenos Aires y CABA en 0, tiempos trabajados y días de cada uno), **Por mes**, **Por año**, **Por provincia**, **Provincia y CCTE** y **En general** (todos los indicadores de la base en una lista). |
 | **Mapa** | `punto_max` (si no existe, el máximo por localidad desde `mediciones`) | Punto máximo de cada localidad coloreado por nivel, con leyenda y tooltip. |
 
 El semáforo de colores y sus etiquetas (`0–1 %` … `≥100 %`) son los mismos que

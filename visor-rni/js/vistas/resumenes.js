@@ -17,6 +17,7 @@
    ========================================================================== */
 
 import { primero, select, tieneTabla } from '../base.js'
+import { completarCcte } from '../ccte.js'
 import {
   entero, pct, vm, fecha, momento, duracion, mesLegible,
 } from '../formato.js'
@@ -159,7 +160,7 @@ function cargarCcte() {
     '"resumen_ccte" ni "mediciones": no hay nada para resumir.')
 
   if (tieneTabla('resumen_ccte')) {
-    return select('SELECT * FROM resumen_ccte ORDER BY mediciones DESC')
+    return completarCcte(select('SELECT * FROM resumen_ccte'))
   }
 
   const filas = select(`
@@ -170,17 +171,19 @@ function cargarCcte() {
            MAX(resultado_vm)                         AS resultado_max_vm,
            MAX(resultado_pct)                        AS resultado_max_pct,
            COUNT(DISTINCT substr(fecha_hora, 1, 10)) AS dias_con_medicion
-      FROM mediciones GROUP BY ccte ORDER BY mediciones DESC`)
+      FROM mediciones GROUP BY ccte`)
 
   for (const f of filas) {
     const p = primero(
       'SELECT localidad FROM mediciones WHERE ccte = ? ' +
       'ORDER BY resultado_vm DESC, id ASC LIMIT 1', [f.ccte])
     f.localidad_max = p ? p.localidad : null
-    f.tiempo_trabajado_seg = 0
+    f.tiempo_trabajado_seg = null
     f.actualizado_en = null
   }
-  return filas
+
+  // siempre los 7 CCTE (ver js/ccte.js)
+  return completarCcte(filas)
 }
 
 function cargarMes() {

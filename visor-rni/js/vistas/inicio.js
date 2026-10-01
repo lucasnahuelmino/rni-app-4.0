@@ -20,6 +20,7 @@
    ========================================================================== */
 
 import { primero, select, tieneTabla } from '../base.js'
+import { completarCcte } from '../ccte.js'
 import { entero, pct, vm, fecha, duracion } from '../formato.js'
 import { $, vaciar, error, distintivoValor } from '../ui.js'
 import { exportarXLSX } from '../exportar.js'
@@ -95,34 +96,36 @@ function consultarPico() {
 }
 
 function consultarCctes() {
-  if (tieneTabla('resumen_ccte')) {
-    return select('SELECT * FROM resumen_ccte ORDER BY mediciones DESC')
-  }
+  let filas = []
 
-  if (!tieneTabla('mediciones')) {
+  if (tieneTabla('resumen_ccte')) {
+    filas = select('SELECT * FROM resumen_ccte')
+  } else if (tieneTabla('mediciones')) {
+    filas = select(`
+      SELECT ccte,
+             COUNT(*)                                     AS mediciones,
+             COUNT(DISTINCT provincia || char(31) || localidad) AS localidades,
+             COUNT(DISTINCT provincia)                    AS provincias,
+             MAX(resultado_vm)                            AS resultado_max_vm,
+             MAX(resultado_pct)                           AS resultado_max_pct,
+             COUNT(DISTINCT substr(fecha_hora, 1, 10))    AS dias_con_medicion
+        FROM mediciones GROUP BY ccte`)
+
+    for (const f of filas) {
+      const p = primero(
+        'SELECT localidad FROM mediciones WHERE ccte = ? ' +
+        'ORDER BY resultado_vm DESC, id ASC LIMIT 1', [f.ccte])
+      f.localidad_max = p ? p.localidad : null
+      f.tiempo_trabajado_seg = null
+      f.actualizado_en = null
+    }
+  } else {
     throw new Error('Esta base no tiene la tabla "resumen_ccte" ni ' +
       '"mediciones": no hay nada para resumir.')
   }
 
-  const filas = select(`
-    SELECT ccte,
-           COUNT(*)                                     AS mediciones,
-           COUNT(DISTINCT provincia || char(31) || localidad) AS localidades,
-           COUNT(DISTINCT provincia)                    AS provincias,
-           MAX(resultado_vm)                            AS resultado_max_vm,
-           MAX(resultado_pct)                           AS resultado_max_pct,
-           COUNT(DISTINCT substr(fecha_hora, 1, 10))    AS dias_con_medicion
-      FROM mediciones GROUP BY ccte ORDER BY mediciones DESC`)
-
-  for (const f of filas) {
-    const p = primero(`
-      SELECT localidad FROM mediciones
-       WHERE ccte = ? ORDER BY resultado_vm DESC, id ASC LIMIT 1`, [f.ccte])
-    f.localidad_max = p ? p.localidad : null
-    f.tiempo_trabajado_seg = 0
-    f.actualizado_en = null
-  }
-  return filas
+  // siempre los 7 CCTE (ver js/ccte.js): Buenos Aires y CABA con fila vacía
+  return completarCcte(filas)
 }
 
 /** Carga (o recarga) todo lo que muestra el Inicio. */
@@ -232,8 +235,11 @@ function pintar() {
   pintarPico()
   pintarCctes()
 
+  // se muestran siempre los 7 CCTE; aclaro cuántos tienen datos
+  const conDatos = cctes.filter((c) => c.mediciones > 0).length
   $('#ini-contador').textContent =
-    `${entero(cctes.length)} centro${cctes.length === 1 ? '' : 's'}`
+    `${entero(cctes.length)} centro${cctes.length === 1 ? '' : 's'}` +
+    (conDatos < cctes.length ? ` · ${entero(conDatos)} con mediciones` : '')
 }
 
 export function refrescar() { if (listo) pintar() }

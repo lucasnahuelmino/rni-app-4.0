@@ -541,11 +541,12 @@ code {
 .seccion { display: flex; flex-direction: column; gap: 12px; }
 .seccion__titulo { font-size: 16.5px; margin-top: 4px; }
 
-/* tarjetas por CCTE (mismo contenido que CcteCard de la app) */
+/* tarjetas por CCTE (mismo contenido que CcteCard de la app).
+   Los 7 centros van en UNA fila: una columna por centro. */
 .ccte-grilla {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .ccte-card {
@@ -553,35 +554,41 @@ code {
   border: 1px solid var(--linea);
   border-top: 3px solid var(--teal);
   border-radius: 8px;
-  padding: 13px 16px 15px;
+  padding: 10px 12px 12px;
+  min-width: 0;
 }
 
 .ccte-card h3 {
-  font-size: 16.5px;
-  margin-bottom: 10px;
+  font-size: 14.5px;
+  margin-bottom: 8px;
   color: var(--tinta);
   overflow-wrap: anywhere;
 }
 
 .ccte-card dl { margin: 0; }
 
+/* Con 7 columnas cada tarjeta queda angosta, así que la etiqueta va arriba
+   del valor: se lee igual a 140 px que a 240 px de ancho. */
 .ccte-card__fila {
   display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 12px;
-  padding: 5px 0;
+  flex-direction: column;
+  padding: 4px 0;
   border-bottom: 1px dotted var(--linea);
 }
 
 .ccte-card__fila:last-child { border-bottom: 0; }
 
-.ccte-card dt { font-size: 12.5px; color: var(--tinta-media); }
+.ccte-card dt {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--tinta-media);
+}
 
 .ccte-card dd {
   margin: 0;
   font-size: 13.5px;
-  text-align: right;
+  text-align: left;
   overflow-wrap: anywhere;
 }
 
@@ -772,6 +779,12 @@ code {
 .aviso-file code { background: rgba(255, 255, 255, 0.22); color: #fff; }
 
 /* ---------------------------- responsive ---------------------------- */
+
+/* Pantalla angosta: las 7 tarjetas pasan a acomodarse solas antes de
+   achicarse tanto que no se pueda leer una fila. */
+@media (max-width: 1250px) {
+  .ccte-grilla { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+}
 
 @media (max-width: 900px) {
   .shell {
