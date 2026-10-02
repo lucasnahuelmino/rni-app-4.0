@@ -10,6 +10,13 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 DB_PATH = Path(os.environ.get("RNI_DB_PATH", BASE_DIR / "data" / "rni.db"))
 SCHEMA_PATH = BASE_DIR / "app" / "db" / "schema.sql"
 
+# Carpeta de respaldos, FUERA del repo a propósito: data/ está en .gitignore,
+# así que una copia adentro se caería junto con lo que queremos resguardar
+# (era exactamente lo que pasaba con rni_lote6_backup.db, que vivía al lado
+# de la base). La comparten scripts/backup_db.py y services/backup_service.py
+# para que no haya dos versiones de la misma ruta.
+BACKUP_DIR = Path.home() / "Backups" / "rni"
+
 # Los 7 Centros de Comprobación Técnica de Emisiones. Buenos Aires y CABA
 # deben aparecer siempre en /api/ccte-summary aunque tengan 0 mediciones
 # (Auditoría Fase 1, requisito de negocio confirmado).

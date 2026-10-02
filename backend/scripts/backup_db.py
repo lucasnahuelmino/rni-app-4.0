@@ -27,9 +27,11 @@ from pathlib import Path
 # para que "python scripts/backup_db.py" desde backend/ encuentre el paquete app
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.core.config import DB_PATH  # noqa: E402  (una sola fuente de verdad)
+from app.core.config import BACKUP_DIR, DB_PATH  # noqa: E402  (una sola fuente de verdad)
 
-DESTINO_DEFECTO = Path.home() / "Backups" / "rni"
+# El nombre lo conservan restore_db.py y el CLI: es la misma ruta que
+# config.BACKUP_DIR, que es donde también la mira backup_service para subirla.
+DESTINO_DEFECTO = BACKUP_DIR
 RETENCION_DEFECTO = 10
 PREFIJO = "rni_"
 LOG = "backup.log"

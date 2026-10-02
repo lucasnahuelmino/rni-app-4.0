@@ -1,17 +1,18 @@
 from __future__ import annotations
 
 import pandas as pd
-from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, UploadFile
 
 from app.core.deps import get_db
 from app.db.repositories import import_repo
-from app.services import import_service
+from app.services import backup_service, import_service
 
 router = APIRouter()
 
 
 @router.post("/import")
 async def post_import(
+    background_tasks: BackgroundTasks,
     ccte: str = Form(...),
     provincia: str = Form(...),
     localidad: str = Form(...),
@@ -38,6 +39,11 @@ async def post_import(
         conn, ccte=ccte, provincia=provincia, localidad=localidad, expediente=expediente,
         archivos=leidos,
     )
+    # El respaldo y la subida a Drive corren DESPUÉS de responder
+    # (BackgroundTasks): subir 102 MB no tiene que frenar la carga y, si
+    # falla, la carga igual ya quedó hecha. Ver services/backup_service.py;
+    # en los tests queda apagado con RNI_BACKUP_AUTO=0 (tests/conftest.py).
+    background_tasks.add_task(backup_service.ejecutar_backup_y_subir)
     return reporte
 
 

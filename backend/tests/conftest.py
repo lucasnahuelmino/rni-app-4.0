@@ -7,6 +7,19 @@ from fastapi.testclient import TestClient
 from app.db.database import get_connection
 
 
+@pytest.fixture(autouse=True)
+def respaldo_drive_apagado(monkeypatch):
+    """`POST /api/import` agenda un respaldo + subida a Drive. En los tests
+    eso no puede correr: TestClient ejecuta los background tasks antes de
+    devolver la respuesta, así que cada prueba estaría respaldando 102 MB y
+    subiéndolos. Ver app/services/backup_service.auto.
+
+    Un test que quiera el comportamiento encendido lo prende él mismo con
+    `monkeypatch.setenv("RNI_BACKUP_AUTO", "1")`.
+    """
+    monkeypatch.setenv("RNI_BACKUP_AUTO", "0")
+
+
 @pytest.fixture()
 def db_path(tmp_path: Path) -> Path:
     return tmp_path / "rni_test.db"
