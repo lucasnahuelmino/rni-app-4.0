@@ -7,10 +7,16 @@ npm install
 
 ## Desarrollo (con proxy al backend)
 ```
-VITE_API_PROXY_TARGET=http://localhost:8000 npm run dev
+npm run dev
 ```
 Levanta en http://localhost:5173, con `/api/*` proxeado al backend FastAPI
-(ver Fase 3). Asumir que el backend ya está corriendo en el puerto 8000.
+(ver Fase 3). El backend tiene que estar en el **8001**.
+
+El target vive en `frontend/.env.local` (`VITE_API_PROXY_TARGET=http://localhost:8001`),
+que Vite lee solo; la variable de arriba hace lo mismo pero hay que
+escribirla a mano en cada terminal. Ojo con el 8000: lo tiene AeroRF, otro
+proyecto de esta máquina, y sin `.env.local` el proxy le pegaría a la app
+equivocada sin decirte nada.
 
 ## Build de producción
 ```

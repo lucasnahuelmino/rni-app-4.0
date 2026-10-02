@@ -168,3 +168,84 @@ def test_import_con_encabezados_en_la_primera_fila(client):
     body = resp.json()
     assert body["registros_nuevos"] == 3
     assert body["advertencias"] == [], body["advertencias"]
+
+
+# --- caché de /api/diagnostics ----------------------------------------
+# Son 11 COUNT sobre toda la tabla: 1.3 s en caliente y 33 s la primera vez
+# después de un reinicio. Ver services/diagnostics.py.
+
+def _contar_calculos(monkeypatch, diagnostics_service):
+    """Reemplaza `obtener_diagnostico` por una que anota cada vez que se
+    calcula de verdad. Lo que no aparezca en la lista salió de la caché."""
+    llamadas = []
+    original = diagnostics_service.obtener_diagnostico
+
+    def contadora(conn):
+        llamadas.append(1)
+        return original(conn)
+
+    monkeypatch.setattr(diagnostics_service, "obtener_diagnostico", contadora)
+    return llamadas
+
+
+def test_diagnostics_se_cachea(client, monkeypatch):
+    """La segunda llamada al endpoint no vuelve a calcular nada."""
+    from app.services import diagnostics as diagnostics_service
+
+    diagnostics_service.invalidar_cache()
+    primero = client.get("/api/diagnostics")
+    assert primero.status_code == 200
+    assert primero.json()["total_registros"] == 0
+
+    llamadas = _contar_calculos(monkeypatch, diagnostics_service)
+    segundo = client.get("/api/diagnostics")
+
+    assert segundo.status_code == 200
+    assert segundo.json() == primero.json()
+    assert llamadas == [], "la caché no hizo falta recalcular"
+
+
+def test_diagnostics_cachea_por_firma_aunque_nadie_la_invalid(client, monkeypatch):
+    """La firma (COUNT + MAX(rowid)) corta la caché sola: sirve para toda
+    escritura que no pase por los ganchos explícitos, por ejemplo un script
+    que toque la base directo."""
+    from app.services import diagnostics as diagnostics_service
+
+    diagnostics_service.invalidar_cache()
+    assert client.get("/api/diagnostics").json()["total_registros"] == 0
+
+    monkeypatch.setattr(diagnostics_service, "invalidar_cache", lambda: None)
+    resp = client.post(
+        "/api/import",
+        data={"ccte": "Salta", "provincia": "Salta", "localidad": "Salta Capital"},
+        files={"archivos": ("a.xlsx", _excel_bytes_estilo_enacom(),
+                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+    )
+    assert resp.status_code == 200, resp.text
+
+    assert client.get("/api/diagnostics").json()["total_registros"] == 3
+
+
+def test_editar_localidad_tira_el_cache_de_diagnostics(client, monkeypatch):
+    """Un rename no cambia la firma, así que sin el `invalidar_cache` de la
+    ruta la caché seguiría con los números viejos."""
+    from app.services import diagnostics as diagnostics_service
+
+    client.post(
+        "/api/import",
+        data={"ccte": "Neuquén", "provincia": "Neuquén", "localidad": "Neuquén Capital"},
+        files={"archivos": ("a.xlsx", _excel_bytes_estilo_enacom(),
+                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+    )
+    assert client.get("/api/diagnostics").json()["total_registros"] == 3
+
+    llamadas = _contar_calculos(monkeypatch, diagnostics_service)
+    resp = client.put(
+        "/api/localities/Neuquén Capital",
+        params={"ccte": "Neuquén", "provincia": "Neuquén"},
+        json={"localidad": "Neuquén Centro"},
+    )
+    assert resp.status_code == 200
+
+    assert client.get("/api/diagnostics").status_code == 200
+    assert llamadas, "la edición tiene que tirar el diagnóstico cacheado"

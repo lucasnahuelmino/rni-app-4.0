@@ -5,7 +5,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Up
 
 from app.core.deps import get_db
 from app.db.repositories import import_repo
-from app.services import backup_service, import_service
+from app.services import backup_service, diagnostics as diagnostics_service, import_service
 
 router = APIRouter()
 
@@ -39,6 +39,10 @@ async def post_import(
         conn, ccte=ccte, provincia=provincia, localidad=localidad, expediente=expediente,
         archivos=leidos,
     )
+    # Acabamos de meter filas: el diagnóstico guardado ya no sirve. Sin esto
+    # la vista de Carga mostraría los números de antes de la carga (ver
+    # services/diagnostics.py, la caché).
+    diagnostics_service.invalidar_cache()
     # El respaldo y la subida a Drive corren DESPUÉS de responder
     # (BackgroundTasks): subir 102 MB no tiene que frenar la carga y, si
     # falla, la carga igual ya quedó hecha. Ver services/backup_service.py;

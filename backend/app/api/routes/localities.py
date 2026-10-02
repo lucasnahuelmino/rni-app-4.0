@@ -7,7 +7,7 @@ from app.calculations.dates import format_timedelta_long
 from app.core.deps import get_db
 from app.db.repositories import resumen_repo
 from app.schemas.filters import FiltrosQuery, filtros_query
-from app.services import measurements
+from app.services import diagnostics as diagnostics_service, measurements
 
 router = APIRouter()
 
@@ -59,6 +59,11 @@ def put_locality(localidad: str, ccte: str, provincia: str, body: EditarLocalida
     filas_afectadas = measurements.editar_metadata_localidad(conn, ccte, provincia, localidad, nuevos)
     if filas_afectadas == 0:
         raise HTTPException(status_code=404, detail="Localidad no encontrada")
+    # Defensivo: renombrar por sí sólo no mueve ni el COUNT ni el rowid, pero
+    # si el nombre nuevo choca con una localidad que ya existía, las dos
+    # quedan juntas en el agrupamiento de `duplicados_probables` y el
+    # diagnóstico cambia sin que se mueva la firma.
+    diagnostics_service.invalidar_cache()
     return {"filas_afectadas": filas_afectadas}
 
 
@@ -67,6 +72,7 @@ def delete_locality(localidad: str, ccte: str, provincia: str, conn=Depends(get_
     filas_borradas = measurements.eliminar_localidad(conn, ccte, provincia, localidad)
     if filas_borradas == 0:
         raise HTTPException(status_code=404, detail="Localidad no encontrada")
+    diagnostics_service.invalidar_cache()
     return {"filas_borradas": filas_borradas}
 
 

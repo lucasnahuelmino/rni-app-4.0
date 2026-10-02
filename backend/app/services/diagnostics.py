@@ -27,6 +27,7 @@ contadores de calidad de datos de siempre.
 from __future__ import annotations
 
 import sqlite3
+import time
 
 from app.core.config import ARGENTINA_BBOX
 
@@ -96,3 +97,61 @@ def obtener_diagnostico(conn: sqlite3.Connection) -> dict:
         "excedencias_mep": excedencias_mep,
         "duplicados_probables": duplicados_probables,
     }
+
+
+# --- caché -------------------------------------------------------------
+# Las 11 queries de arriba leen los 219.818 registros: 1.3 s con las páginas
+# en memoria y **33 s la primera vez** después de reiniciar el backend (es el
+# endpoint más lento de la API y la vista de Carga lo pide). Los números sólo
+# cambian si cambian los datos, así que el resultado se guarda y se recalcula
+# sólo cuando algo se movió.
+#
+# Tres cortapisas por si una sola no alcanzara:
+#
+#  * `firma`: COUNT(*) + MAX(rowid) de `mediciones` (8 ms) detecta altas,
+#    bajas y reemplazos vengan de donde vengan, incluso de un script hecho a
+#    mano. Además es lo que evita que dos tests con bases distintas se pisen:
+#    el módulo se importa una sola vez para toda la sesión.
+#  * `invalidar_cache`: lo llaman las rutas que escriben. Es el contrato
+#    explícito y no depende de cómo esté armada la firma. El caso que de
+#    verdad hace falta es renombrar una localidad: por sí solo un rename no
+#    mueve ni el COUNT ni el rowid, pero si el nombre nuevo choca con una
+#    localidad existente las filas quedan juntas en el agrupamiento de
+#    `duplicados_probables` y el número cambia sin que se mueva la firma.
+#  * TTL: red de seguridad por cualquier escritura que no esté en esas rutas.
+#    Como máximo 60 s de datos viejos.
+TTL_SEGUNDOS = 60
+
+# (firma, momento, datos). Una sola tupla en una sola variable: se escribe de
+# un pisotón, así quien la lee nunca coge una mitad con la otra (los endpoints
+# corren en threadpool y puede haber dos peticiones a la vez).
+_entrada: tuple | None = None
+
+
+def _firma(conn: sqlite3.Connection) -> tuple[int, int]:
+    fila = conn.execute(
+        "SELECT COUNT(*) AS n, COALESCE(MAX(rowid), 0) AS ultima FROM mediciones"
+    ).fetchone()
+    return fila["n"], fila["ultima"]
+
+
+def invalidar_cache() -> None:
+    """Tira el diagnóstico cacheado. Lo llaman las rutas que escriben."""
+    global _entrada
+    _entrada = None
+
+
+def obtener_diagnostico_cacheado(conn: sqlite3.Connection) -> dict:
+    """`obtener_diagnostico` sin volver a calcularlo si nada cambió.
+
+    Devuelve una copia: el que llama se puede quedar con el dict sin que la
+    próxima escritura le cambie los datos de debajo.
+    """
+    global _entrada
+    firma = _firma(conn)
+    ahora = time.monotonic()
+    if _entrada is not None and _entrada[0] == firma and ahora - _entrada[1] < TTL_SEGUNDOS:
+        return dict(_entrada[2])
+    datos = obtener_diagnostico(conn)
+    _entrada = (firma, ahora, datos)
+    return dict(datos)

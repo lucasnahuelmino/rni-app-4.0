@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -7,22 +9,23 @@ from app.api.routes import charts, colors, diagnostics, imports, kpis, localitie
 from app.db.database import get_connection, init_schema
 from app.services import measurements, statistics
 
-app = FastAPI(title="RNI API", version="1.0.0")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # ajustar a los orígenes reales del frontend Vue en producción
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    """Crea las tablas y prepara las derivadas al arrancar.
 
+    `init_schema` crea las tablas (si hacía falta) y las llena si nacieron
+    vacías: a una base existente solo se le aplica el DDL nuevo, que usa IF
+    NOT EXISTS y por eso no escribe datos. Ver
+    services/statistics.poblar_tablas_derivadas.
 
-@app.on_event("startup")
-def on_startup() -> None:
+    Iba en `@app.on_event("startup")`, que FastAPI declaró obsoleto en favor
+    de `lifespan`: al importar el módulo tiraba un DeprecationWarning y en
+    una versión futura directamente no iba a arrancar. Es la misma corrida,
+    sólo cambia la forma de declararla; el TestClient de los tests la dispara
+    igual (va con `with`, ver tests/conftest.py).
+    """
     init_schema()
-    # Crea las tablas (si hacía falta) y las llena si nacieron vacías: a una
-    # base existente solo se le aplica el DDL nuevo, que usa IF NOT EXISTS y
-    # por eso no escribe datos. Ver services/statistics.poblar_tablas_derivadas.
     with get_connection() as conn:
         # Primero la sanitización: pone en positivo los resultado_vm
         # negativos que traía la carga legacy (la sonda reporta -0.001 por
@@ -33,6 +36,17 @@ def on_startup() -> None:
         if corregidas:
             print(f"[startup] resultado_vm negativos pasados a positivo: {corregidas}")
         statistics.poblar_tablas_derivadas(conn)
+    yield
+
+
+app = FastAPI(title="RNI API", version="1.0.0", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # ajustar a los orígenes reales del frontend Vue en producción
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 app.include_router(kpis.router, prefix="/api", tags=["kpis"])
@@ -54,10 +68,11 @@ def health():
     `/api/health` es el de la app: el que usan el frontend y los tests.
 
     `/health` va además, y fuera del prefijo, porque algo fuera de la app
-    sondea `http://127.0.0.1:8000/health` cada pocos segundos y hasta ahora
-    caía en un 404: en los registros de uvicorn se ven esas respuestas
-    404 repetidas entre medio de las peticiones reales. Dos decoradores
-    sobre la misma función, así que es el mismo cuerpo sin lógica
+    sondea `/health` cada pocos segundos y hasta ahora caía en un 404: en los
+    registros de uvicorn se ven esas respuestas 404 repetidas entre medio de
+    las peticiones reales. (Eso pasaba cuando la API vivía en el 8000; hoy
+    está en el 8001 y la sonda, si sigue viva, le pega a otro servicio.) Dos
+    decoradores sobre la misma función, así que es el mismo cuerpo sin lógica
     duplicada.
     """
     return {"status": "ok"}

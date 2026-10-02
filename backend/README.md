@@ -17,9 +17,11 @@ informes. La cantidad exacta cambia con el código -- contalos con
 
 ## Levantar la API
 ```
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload --port 8001
 ```
-Documentación interactiva en http://localhost:8000/docs
+El `--port` no es opcional: el default de uvicorn es el **8000**, que en esta
+máquina lo tiene AeroRF. Documentación interactiva en
+http://localhost:8001/docs
 
 ## Migrar desde la base Streamlit actual
 ```
