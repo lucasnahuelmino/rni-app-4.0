@@ -80,6 +80,14 @@ def respaldar(origen: Path, destino_dir: Path) -> Path:
     destino_conn = sqlite3.connect(str(salida))
     try:
         origen_conn.backup(destino_conn)
+        # La base vive en WAL y `backup()` le copia el encabezado entero a la
+        # copia, así que el respaldo nacería en WAL: un archivo con su
+        # diario en `*-wal` aparte. `restore_db` restaura con un
+        # `shutil.copy2` crudo y las copias se arrastran a mano, así que un
+        # `-wal` que no viaje con el `.db` daría una base a medias.
+        # Volviendo a DELETE cada respaldo queda autocontenido en un archivo.
+        destino_conn.commit()
+        destino_conn.execute("PRAGMA journal_mode=DELETE")
     except sqlite3.Error:
         if salida.exists():
             salida.unlink()  # no dejar una copia incompleta dando vueltas
