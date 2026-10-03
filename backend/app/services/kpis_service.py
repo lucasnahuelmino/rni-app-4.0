@@ -38,8 +38,11 @@ def _kpis_precalculados(conn: sqlite3.Connection) -> dict | None:
     pico_maximo = None
     if fila["pico_id"] is not None:
         detalle = conn.execute(
-            """SELECT localidad, provincia, ccte, resultado_vm, resultado_pct, expediente
-               FROM mediciones WHERE id = ?""",
+            """SELECT localidad, provincia, ccte, resultado_vm, resultado_pct,
+                      e.expediente AS expediente
+               FROM mediciones m
+               LEFT JOIN expedientes e ON e.id = m.expediente_id
+               WHERE m.id = ?""",
             (fila["pico_id"],),
         ).fetchone()
         if detalle:
@@ -90,9 +93,12 @@ def obtener_kpis(conn: sqlite3.Connection, filtros: FiltrosQuery) -> dict:
         # coincide porque el recorrido de tabla sale en orden de rowid, pero
         # no está garantizado y no se puede comparar contra el atajo.
         detalle = conn.execute(
-            f"""SELECT localidad, provincia, ccte, resultado_vm, resultado_pct, expediente
-                FROM mediciones {where} {"AND" if where else "WHERE"} resultado_vm = ?
-                ORDER BY id ASC LIMIT 1""",
+            f"""SELECT localidad, provincia, ccte, resultado_vm, resultado_pct,
+                       e.expediente AS expediente
+                FROM mediciones m
+                LEFT JOIN expedientes e ON e.id = m.expediente_id
+                {where} {"AND" if where else "WHERE"} resultado_vm = ?
+                ORDER BY m.id ASC LIMIT 1""",
             params + [row["pico_vm"]],
         ).fetchone()
         if detalle:

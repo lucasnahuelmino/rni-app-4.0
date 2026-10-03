@@ -345,11 +345,13 @@ def grupos_tiempo_trabajado(conn: sqlite3.Connection, where: str, params: list) 
     filtro que el resto de la fila.
     """
     cur = conn.execute(
-        f"""SELECT ccte, provincia, localidad, nombre_archivo,
+        f"""SELECT ccte, provincia, localidad, a.nombre_archivo,
                    substr(fecha_hora, 1, 10) AS dia,
                    MIN(fecha_hora) AS desde, MAX(fecha_hora) AS hasta
-            FROM mediciones {where} {"AND" if where else "WHERE"} fecha_hora IS NOT NULL
-            GROUP BY ccte, provincia, localidad, nombre_archivo, substr(fecha_hora, 1, 10)""",
+            FROM mediciones m
+            LEFT JOIN archivos a ON a.id = m.archivo_id
+            {where} {"AND" if where else "WHERE"} fecha_hora IS NOT NULL
+            GROUP BY ccte, provincia, localidad, a.nombre_archivo, substr(fecha_hora, 1, 10)""",
         params,
     )
     return [dict(r) for r in cur.fetchall()]
@@ -397,9 +399,11 @@ def listar_resumen_localidad_en_vivo(conn: sqlite3.Connection, ccte=None, provin
                        MIN(fecha_hora) AS fecha_inicio,
                        MAX(fecha_hora) AS fecha_fin,
                        COUNT(DISTINCT substr(fecha_hora, 1, 10)) AS dias_con_medicion,
-                       group_concat(DISTINCT expediente) AS expedientes,
+                       group_concat(DISTINCT e.expediente) AS expedientes,
                        group_concat(DISTINCT sonda) AS sondas
-                FROM mediciones {where}
+                FROM mediciones m
+                LEFT JOIN expedientes e ON e.id = m.expediente_id
+                {where}
                 GROUP BY ccte, provincia, localidad
                 ORDER BY ccte, provincia, localidad""",
             params,

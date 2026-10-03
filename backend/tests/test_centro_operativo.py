@@ -8,6 +8,7 @@ test_mapa_tiempos_colores.py.
 """
 import pandas as pd
 
+from app.db.repositories import mediciones_repo
 from app.schemas.filters import FiltrosQuery
 from app.services import import_service, tiempos as tiempos_service
 
@@ -179,13 +180,19 @@ def test_monthly_trend_no_cuenta_fechas_vacias(conn):
         conn, ccte="Salta", provincia="Salta", localidad="Salta Capital",
         expediente=None, archivos=[("a.xlsx", _df_dos_dias(lat=-24.78, lon=-65.41))],
     )
-    conn.execute(
-        """INSERT INTO mediciones
-             (ccte, provincia, localidad, resultado_vm, resultado_pct,
-              fecha_hora, anio, fecha_carga)
-           VALUES ('Salta', 'Salta', 'Sin Fecha', 1.0, 1.0, NULL, NULL,
-                   '2025-03-21 00:00:00')"""
-    )
+    # Misma puerta de escritura que arriba: `fecha_carga` es un id en su
+    # tabla ahora, y el texto lo resuelve `insertar_mediciones`.
+    mediciones_repo.insertar_mediciones(conn, [{
+        "ccte": "Salta",
+        "provincia": "Salta",
+        "localidad": "Sin Fecha",
+        "resultado_vm": 1.0,
+        "resultado_pct": 1.0,
+        "fecha_hora": None,
+        "anio": None,
+        "fecha_carga": "2025-03-21 00:00:00",
+    }])
+    conn.commit()
 
     con_filtro = get_monthly_trend(filtros=FiltrosQuery(ccte=["Salta"]), conn=conn)
     sin_filtro = get_monthly_trend(filtros=FiltrosQuery(), conn=conn)

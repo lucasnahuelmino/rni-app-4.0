@@ -16,6 +16,27 @@ CREATE TABLE IF NOT EXISTS import_batches (
     advertencias_json     TEXT
 );
 
+-- Procedencia de cada medición. Las tres columnas vivían dentro de `mediciones`
+-- y se repetían en cada fila: `expediente` 132 valores distintos promediando
+-- 32.7 B, `nombre_archivo` 345 x 22.0 B y `fecha_carga` 151 x 24.7 B. Sobre las
+-- 359.414 filas actuales eso son 27.2 MiB de payload de texto para tres id
+-- chicos cada uno (medido antes de migrar; el ahorro real queda en el commit).
+-- Ninguna de las tres entra en un índice ni en un WHERE de `construir_where`.
+CREATE TABLE IF NOT EXISTS expedientes (
+    id                    INTEGER PRIMARY KEY,
+    expediente            TEXT NOT NULL UNIQUE
+);
+
+CREATE TABLE IF NOT EXISTS archivos (
+    id                    INTEGER PRIMARY KEY,
+    nombre_archivo        TEXT NOT NULL UNIQUE
+);
+
+CREATE TABLE IF NOT EXISTS cargas (
+    id                    INTEGER PRIMARY KEY,
+    fecha_carga           TEXT NOT NULL UNIQUE
+);
+
 CREATE TABLE IF NOT EXISTS mediciones (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
 
@@ -36,12 +57,18 @@ CREATE TABLE IF NOT EXISTS mediciones (
     lat_raw             TEXT,
     lon_raw             TEXT,
 
-    expediente          TEXT,
+    -- Procedencia en tablas propias (arriba). Son TEXT en la API y en los
+    -- informes, así que los SELECT que las necesitan hacen LEFT JOIN: ningún
+    -- endpoint devuelve el id. Ojo con `SELECT *`: si dejara de traer
+    -- `expediente`/`nombre_archivo` el DataFrame de los informes pierde la
+    -- agrupación por expediente y `calcular_tiempo_trabajado_segundos` deja de
+    -- separar por archivo (ver reports.obtener_datos_informe).
+    expediente_id       INTEGER REFERENCES expedientes(id),
     sonda               TEXT,
-    nombre_archivo      TEXT,
+    archivo_id          INTEGER REFERENCES archivos(id),
 
     import_batch_id     INTEGER REFERENCES import_batches(id),
-    fecha_carga         TEXT NOT NULL
+    fecha_carga_id      INTEGER NOT NULL REFERENCES cargas(id)
 );
 
 -- No hay índice por `ccte` a secas: `idx_mediciones_ccte_prov_loc` arranca con

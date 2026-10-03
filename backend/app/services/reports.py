@@ -37,6 +37,7 @@ from openpyxl.utils import get_column_letter
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
 
 from app.calculations.dates import calcular_tiempo_trabajado_segundos, format_timedelta_long
+from app.db.repositories import mediciones_repo
 from app.utils import formato
 
 # Mismo PNG que encabeza la barra lateral en el frontend. El backend lleva
@@ -72,7 +73,8 @@ def obtener_datos_informe(conn: sqlite3.Connection, ccte: str, provincia: str,
                            localidad: str) -> dict:
     """Informes de UNA localidad."""
     filas = [dict(r) for r in conn.execute(
-        "SELECT * FROM mediciones WHERE ccte = ? AND provincia = ? AND localidad = ?",
+        f"""SELECT {mediciones_repo.FILAS_COMPLETAS}
+            WHERE ccte = ? AND provincia = ? AND localidad = ?""",
         (ccte, provincia, localidad),
     ).fetchall()]
     return _construir_datos(filas)
@@ -81,7 +83,9 @@ def obtener_datos_informe(conn: sqlite3.Connection, ccte: str, provincia: str,
 def obtener_datos_informe_ccte(conn: sqlite3.Connection, ccte: str) -> dict:
     """Informes de TODO un centro (CCTE), con la misma salida de arriba."""
     filas = [dict(r) for r in conn.execute(
-        "SELECT * FROM mediciones WHERE ccte = ?", (ccte,),
+        f"""SELECT {mediciones_repo.FILAS_COMPLETAS}
+            WHERE ccte = ?""",
+        (ccte,),
     ).fetchall()]
     return _construir_datos(filas)
 

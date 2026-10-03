@@ -28,6 +28,7 @@ from pathlib import Path
 from app.calculations.dates import add_fecha_hora, anio_de_fecha_hora
 from app.calculations.rni import resultado_pct
 from app.core.config import ARGENTINA_BBOX, SCHEMA_PATH
+from app.db.repositories import mediciones_repo
 from app.services import statistics as statistics_service
 
 
@@ -116,13 +117,12 @@ def migrar(origen: Path, destino: Path) -> None:
             "fecha_carga": fila.get("FechaCarga") or ahora,
         })
 
-    columnas = list(filas_nuevas[0].keys()) if filas_nuevas else []
-    if columnas:
-        placeholders = ",".join("?" for _ in columnas)
-        destino_conn.executemany(
-            f"INSERT INTO mediciones ({','.join(columnas)}) VALUES ({placeholders})",
-            [[f[c] for c in columnas] for f in filas_nuevas],
-        )
+    # El INSERT a mano ya no sirve: `expediente`, `nombre_archivo` y
+    # `fecha_carga` son ids en tablas propias, y el que los resuelve desde el
+    # texto (que es como vienen en el dict) es `insertar_mediciones`, el mismo
+    # camino que usa la carga por Excel.
+    if filas_nuevas:
+        mediciones_repo.insertar_mediciones(destino_conn, filas_nuevas)
     destino_conn.commit()
     print(f"Insertadas {len(filas_nuevas)} filas en el destino.")
     print(f"Resultados con signo negativo pasados a positivo: {n_resultados_corregidos}.")

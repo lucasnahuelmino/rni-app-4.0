@@ -48,11 +48,23 @@ FILAS = [
 
 
 def _sembrar(conn) -> None:
-    conn.executemany(
-        """INSERT INTO mediciones
-             (ccte, provincia, localidad, fecha_hora, nombre_archivo, fecha_carga)
-           VALUES (?, ?, ?, ?, ?, '2026-01-01')""",
-        [tuple(f) for f in FILAS],
+    # Por la puerta pública de escritura y no por INSERT crudo: `nombre_archivo`
+    # y `fecha_carga` ahora son ids en tablas de lookup y sólo
+    # `insertar_mediciones` traduce el texto (que es como siguen viniendo en
+    # los datos de arriba).
+    mediciones_repo.insertar_mediciones(
+        conn,
+        [
+            {
+                "ccte": ccte,
+                "provincia": provincia,
+                "localidad": localidad,
+                "fecha_hora": fecha_hora,
+                "nombre_archivo": nombre_archivo,
+                "fecha_carga": "2026-01-01",
+            }
+            for ccte, provincia, localidad, fecha_hora, nombre_archivo in FILAS
+        ],
     )
     conn.commit()
 
