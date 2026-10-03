@@ -39,11 +39,12 @@ function consultarLocalidades() {
              AVG(resultado_pct)                    AS resultado_prom_pct,
              MIN(fecha_hora)                       AS fecha_inicio,
              MAX(fecha_hora)                       AS fecha_fin,
-             GROUP_CONCAT(DISTINCT expediente)     AS expedientes,
+             GROUP_CONCAT(DISTINCT e.expediente)   AS expedientes,
              GROUP_CONCAT(DISTINCT sonda)          AS sondas,
              0                                     AS tiempo_trabajado_seg,
              COUNT(DISTINCT substr(fecha_hora, 1, 10)) AS dias_con_medicion
         FROM mediciones
+        LEFT JOIN expedientes e ON e.id = mediciones.expediente_id
        GROUP BY ccte, provincia, localidad
        ORDER BY ccte, provincia, localidad`)
   }

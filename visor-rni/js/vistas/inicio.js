@@ -82,17 +82,21 @@ function consultarPico() {
 
   if (kpis.picoId !== null && kpis.picoId !== undefined) {
     const fila = primero(`
-      SELECT localidad, provincia, ccte, resultado_vm, resultado_pct,
-             fecha_hora, expediente
-        FROM mediciones WHERE id = ?`, [kpis.picoId])
+      SELECT m.localidad, m.provincia, m.ccte, m.resultado_vm, m.resultado_pct,
+             m.fecha_hora, e.expediente
+        FROM mediciones m
+        LEFT JOIN expedientes e ON e.id = m.expediente_id
+       WHERE m.id = ?`, [kpis.picoId])
     if (fila) return fila
   }
 
   return primero(`
-    SELECT localidad, provincia, ccte, resultado_vm, resultado_pct,
-           fecha_hora, expediente
-      FROM mediciones WHERE resultado_vm = ?
-     ORDER BY id ASC LIMIT 1`, [kpis.picoVm])
+    SELECT m.localidad, m.provincia, m.ccte, m.resultado_vm, m.resultado_pct,
+           m.fecha_hora, e.expediente
+      FROM mediciones m
+      LEFT JOIN expedientes e ON e.id = m.expediente_id
+     WHERE m.resultado_vm = ?
+     ORDER BY m.id ASC LIMIT 1`, [kpis.picoVm])
 }
 
 function consultarCctes() {

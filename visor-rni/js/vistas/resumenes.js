@@ -312,14 +312,16 @@ function cargarGeneral() {
 
   let pico = null
   if (global_ && global_.pico_id !== null && global_.pico_id !== undefined) {
-    pico = primero('SELECT localidad, provincia, ccte, resultado_vm, ' +
-      'resultado_pct, fecha_hora, expediente FROM mediciones WHERE id = ?',
+    pico = primero('SELECT m.localidad, m.provincia, m.ccte, m.resultado_vm, ' +
+      'm.resultado_pct, m.fecha_hora, e.expediente FROM mediciones m ' +
+      'LEFT JOIN expedientes e ON e.id = m.expediente_id WHERE m.id = ?',
       [global_.pico_id])
   }
   if (!pico && r && r.pico_vm !== null && r.pico_vm !== undefined) {
-    pico = primero('SELECT localidad, provincia, ccte, resultado_vm, ' +
-      'resultado_pct, fecha_hora, expediente FROM mediciones ' +
-      'WHERE resultado_vm = ? ORDER BY id ASC LIMIT 1', [r.pico_vm])
+    pico = primero('SELECT m.localidad, m.provincia, m.ccte, m.resultado_vm, ' +
+      'm.resultado_pct, m.fecha_hora, e.expediente FROM mediciones m ' +
+      'LEFT JOIN expedientes e ON e.id = m.expediente_id ' +
+      'WHERE m.resultado_vm = ? ORDER BY m.id ASC LIMIT 1', [r.pico_vm])
   }
 
   const tiempo = tieneTabla('resumen_ccte')

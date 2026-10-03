@@ -43,11 +43,20 @@ function clausula() {
   if (filtro.busqueda) {
     const like = '%' + filtro.busqueda + '%'
     partes.push(`(localidad LIKE ? OR provincia LIKE ? OR ccte LIKE ?
-                  OR sonda LIKE ? OR IFNULL(expediente, '') LIKE ?)`)
+                  OR sonda LIKE ? OR IFNULL(e.expediente, '') LIKE ?)`)
     params.push(like, like, like, like, like)
   }
 
-  return { sql: partes.length ? 'WHERE ' + partes.join(' AND ') : '', params }
+  // `expediente` hoy vive en la tabla expedientes, no en mediciones. El
+  // join entra SOLO cuando el filtro lo necesita, asi las consultas de la
+  // pagina no lo arrastran de arriba. Ojo: con el join, `id` pasa a ser
+  // ambiguo (lo tienen las dos tablas), por eso los ORDER BY lo escriben
+  // como `mediciones.id`.
+  const join = filtro.busqueda
+    ? ' LEFT JOIN expedientes e ON e.id = mediciones.expediente_id'
+    : ''
+
+  return { sql: partes.length ? 'WHERE ' + partes.join(' AND ') : '', params, join }
 }
 
 const hayFiltros = () =>
@@ -100,16 +109,16 @@ export function cargar() {
 export function refrescar() {
   if (!listo || !tieneTabla('mediciones')) return
 
-  const { sql, params } = clausula()
+  const { sql, params, join } = clausula()
 
-  total = contar('SELECT COUNT(*) AS n FROM mediciones ' + sql, params)
+  total = contar('SELECT COUNT(*) AS n FROM mediciones' + join + ' ' + sql, params)
 
   const ultima = Math.max(1, Math.ceil(total / porPagina))
   if (pagina > ultima) pagina = ultima
 
   const filas = select(
-    `SELECT ${COLS} FROM mediciones ${sql}
-      ORDER BY fecha_hora DESC, id DESC
+    `SELECT ${COLS} FROM mediciones${join} ${sql}
+      ORDER BY fecha_hora DESC, mediciones.id DESC
       LIMIT ? OFFSET ?`,
     [...params, porPagina, (pagina - 1) * porPagina])
 
@@ -172,13 +181,14 @@ function pintarPaginacion() {
 function exportar() {
   if (!tieneTabla('mediciones')) return
 
-  const { sql, params } = clausula()
+  const { sql, params, join } = clausula()
   aviso('Exportando las mediciones filtradas… esto puede tardar unos segundos.')
 
   setTimeout(() => {
     try {
       const filas = select(
-        `SELECT ${COLS} FROM mediciones ${sql} ORDER BY fecha_hora DESC, id DESC`,
+        `SELECT ${COLS} FROM mediciones${join} ${sql}
+          ORDER BY fecha_hora DESC, mediciones.id DESC`,
         params
       ).map((f) => [
         f.fecha_hora, f.ccte, f.provincia, f.localidad,
