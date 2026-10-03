@@ -50,8 +50,15 @@ CREATE TABLE IF NOT EXISTS mediciones (
 -- 6.6 MiB; lo sacó el lote de reducción de tamaño de la base (149.6 -> 131.5
 -- MiB). Si algún día se vuelve a crear acá, la app lo re-pobla en cada
 -- arranque y el ahorro desaparece.
-CREATE INDEX IF NOT EXISTS idx_mediciones_provincia    ON mediciones(provincia);
-CREATE INDEX IF NOT EXISTS idx_mediciones_localidad    ON mediciones(localidad);
+-- Tampoco hay índice por `provincia` ni por `localidad` a secas: pesaban 6.0 y
+-- 7.1 MiB y sólo los usa un filtro que va SOLO por esa columna (el compuesto
+-- de arriba los cubre en cuanto también entra `ccte`). Medido sobre 359.414
+-- filas: `WHERE provincia IN (?)` pasa de 0.9 a 86.5 ms y
+-- `WHERE localidad IN (?)` de 0.6 a 85.2 ms; `ccte`, `ccte+prov`,
+-- `ccte+prov+loc`, `anio`, `import_batch_id` y el full scan no cambian
+-- (los últimos dos hasta bajan: el archivo es más chico). Ahorro: 13.0 MiB.
+-- Los filtros de la app los arma `construir_where` (mediciones_repo.py) y
+-- `map.py` fuerza `INDEXED BY idx_mediciones_ccte_prov_loc`, nunca éstos.
 CREATE INDEX IF NOT EXISTS idx_mediciones_anio         ON mediciones(anio);
 CREATE INDEX IF NOT EXISTS idx_mediciones_fecha_hora   ON mediciones(fecha_hora);
 CREATE INDEX IF NOT EXISTS idx_mediciones_ccte_prov_loc ON mediciones(ccte, provincia, localidad);
