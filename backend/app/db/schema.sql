@@ -44,7 +44,12 @@ CREATE TABLE IF NOT EXISTS mediciones (
     fecha_carga         TEXT NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_mediciones_ccte         ON mediciones(ccte);
+-- No hay índice por `ccte` a secas: `idx_mediciones_ccte_prov_loc` arranca con
+-- `ccte` y lo cubre igual (medido sobre 359.414 filas: `WHERE ccte = ?` da
+-- 0.1 ms con los dos planes, SEARCH contra el compuesto). Existía y pesaba
+-- 6.6 MiB; lo sacó el lote de reducción de tamaño de la base (149.6 -> 131.5
+-- MiB). Si algún día se vuelve a crear acá, la app lo re-pobla en cada
+-- arranque y el ahorro desaparece.
 CREATE INDEX IF NOT EXISTS idx_mediciones_provincia    ON mediciones(provincia);
 CREATE INDEX IF NOT EXISTS idx_mediciones_localidad    ON mediciones(localidad);
 CREATE INDEX IF NOT EXISTS idx_mediciones_anio         ON mediciones(anio);
